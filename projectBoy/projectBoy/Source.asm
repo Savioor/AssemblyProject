@@ -600,9 +600,21 @@ main proc
 		add DWORD ptr [esi + go_x], eax
 		mov eax, [yOffsetFromBaseBrick + edi] 
 		add DWORD ptr [esi + go_y], eax
+		
+		; Add x offset
+
+		mov eax, ecx ; TODO fix
+		push ecx
+		mov ecx, 10
+		div ecx
+		pop ecx
+		sub eax, 7
+		mov edx, baseBrickX
+		mul edx
+		add DWORD ptr [esi + go_x], eax
 
 		add edi, 4
-		.if edi == 80
+		.if edi == 44
 			xor edi, edi
 		.endif
 		inc ecx
