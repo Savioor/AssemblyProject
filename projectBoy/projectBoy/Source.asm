@@ -38,6 +38,8 @@ go_coll equ 44
 go_points equ 48
 go_collFunc equ 52
 
+imageObjectSize equ 20 ; The size of the Img<> struct
+
 enemy_width equ 20 ; Enemy sizes (hitbox)
 enemy_height equ 30
 
@@ -80,6 +82,8 @@ Player_Still Img<>
 Player_Bullet Img<>
 Enemy0 Img<>
 EnemyBullet0 Img<>
+; The next 4 lines are kinda equivelent to Brick4hp Img 4 dup (<?>)
+; Img<> size is 20 bytes
 Brick4hp Img<>
 Brick3hp Img<>
 Brick2hp Img<>
@@ -304,13 +308,25 @@ defaultCollisionFunc proc, object:DWORD ; TODO add points when you ded
 	ret 4
 defaultCollisionFunc endp
 
+brickCollisionFunc proc, object:DWORD
+	push ebx
+
+	mov ebx, object
+	cmp DWORD ptr [ebx + go_sprite], ofst Brick1hp
+	je DIE
+	add DWORD ptr [ebx + go_sprite], imageObjectSize
+	jmp EXIT_FUNC
+	DIE:
+	mov DWORD ptr [ebx + go_exists], FALSE
+
+	EXIT_FUNC:
+	pop ebx
+	ret 4
+brickCollisionFunc endp
+
 enemyBulletCollision proc, object:DWORD
 	push eax
 	push ebx
-
-	.if DWORD ptr [ebx + go_exists] == FALSE
-		ret 4
-	.endif
 
 	mov ebx, object ; The object which is dying
 	mov al, BULLET_AMOUNT ; eax = BULLET_AMOUNT
@@ -367,6 +383,7 @@ checkCollision proc, object:DWORD
 		call DWORD ptr [esi + go_collFunc]
 		push ebx
 		call DWORD ptr [ebx + go_collFunc]
+		jmp FINISH_COLLISION
 		
 		CONTINUE_COLLISION_LOOP:
 		inc ecx
@@ -601,6 +618,7 @@ main proc
 		mov DWORD ptr [esi + go_exists], TRUE
 		mov DWORD ptr [esi + go_htbxX], 10
 		mov DWORD ptr [esi + go_htbxY], 10
+		mov DWORD ptr [esi + go_collFunc], ofst brickCollisionFunc
 
 		; Set positions
 		mov DWORD ptr [esi + go_x], baseBrickX
