@@ -38,6 +38,9 @@ go_collFunc equ 52
 enemy_width equ 20 ; Enemy sizes (hitbox)
 enemy_height equ 30
 
+baseBrickX equ 168 ; For brick intialazation
+baseBrickY equ 450
+
 ; ---------------- Object defenition ----------------
 
 GameObject STRUCT
@@ -54,7 +57,7 @@ GameObject STRUCT
 	yFreq DWORD 1 ; same but y
 	checkCollision DWORD FALSE ; Is this a bullet (basiclly)
 	pointsOnKill DWORD 0 ; How many points do you get when this shit dies
-	collisionFunc DWORD ofst defaultCollisionFunc ; What happenes when someone touches you
+	collisionFunc DWORD ofst defaultCollisionFunc ; What happenes when someone touches you ;)
 GameObject ENDS
 
 ; ----------- Image location declaration -----------
@@ -63,6 +66,10 @@ d_Player_Still BYTE "Sprites/Player/Player_Regular.bmp", 0
 d_Player_Bullet BYTE "Sprites/Player/Player_Bullet.bmp", 0
 d_Enemy0 BYTE "Sprites/Enemies/Enemy0.bmp", 0
 d_EnemyBullet0 BYTE "Sprites/Enemies/Enemy_Bullet.bmp", 0
+d_Brick4hp BYTE "Sprites/Shields/Brick4hp.bmp", 0
+d_Brick3hp BYTE "Sprites/Shields/Brick3hp.bmp", 0
+d_Brick2hp BYTE "Sprites/Shields/Brick2hp.bmp", 0
+d_Brick1hp BYTE "Sprites/Shields/Brick1hp.bmp", 0
 
 ; ------------ Image memory decleration -------------
 
@@ -70,12 +77,39 @@ Player_Still Img<>
 Player_Bullet Img<>
 Enemy0 Img<>
 EnemyBullet0 Img<>
+Brick4hp Img<>
+Brick3hp Img<>
+Brick2hp Img<>
+Brick1hp Img<>
 
 ; --------------- Object Declaration ---------------
 
 allGameObjects GameObject 110 dup (<?>)
 playerObject GameObject<>
 playerBullet GameObject<>
+
+; ----------- Brick location declaration -----------
+;
+; each @ is 10x10 pixels, - are defined by surrounding @ or markings
+; coordinates are adjusted from base point (marked in drawing)
+;
+;---------------------------------
+;----------@@@@----------@@@@-----
+;|---168--|@@@@|---168--|@@@@-----
+;----------@--@----------@--@-----
+;-----base-^----------------------
+
+;baseBrickX equ 168 (actual declaration - lines 41 and 42)
+;baseBrickY equ 450
+
+; Y Offest array
+
+yOffsetFromBaseBrick DWORD 0, 0, -10, -10, -10, -10, -20, -20, -20, -20
+
+; X offset array:
+
+xOffsetFromBaseBrick DWORD 0, 30, 0, 10, 20, 30, 0, 10, 20, 30
+
 
 ; ---------------------- flags ---------------------
 
@@ -111,11 +145,13 @@ modulu endp
 
 getGameObjectIndex proc, index:DWORD
 	push eax
+	push edx
 	mov esi, index ; Get the the index of the current object
 	mov eax, gameObjectSize
 	mul esi
 	mov esi, eax
 	add esi, ofst allGameObjects
+	pop edx
 	pop eax
 	ret 4
 getGameObjectIndex endp
@@ -459,6 +495,10 @@ main proc
 	invoke drd_imageLoadFile, ofst d_Player_Bullet, ofst Player_Bullet
 	invoke drd_imageLoadFile, ofst d_Enemy0, ofst Enemy0
 	invoke drd_imageLoadFile, ofst d_EnemyBullet0, ofst EnemyBullet0
+	invoke drd_imageLoadFile, ofst d_Brick4hp, ofst Brick4hp
+	invoke drd_imageLoadFile, ofst d_Brick3hp, ofst Brick3hp
+	invoke drd_imageLoadFile, ofst d_Brick2hp, ofst Brick2hp
+	invoke drd_imageLoadFile, ofst d_Brick1hp, ofst Brick1hp
 	
 	jmp gameSetup ; TODO Remove when game finished
 
@@ -540,6 +580,34 @@ main proc
 		inc ecx
 	cmp ecx, 70
 	jne ENEMY_BULLET_SETUP_LOOP
+	; ~~~ Initilize bricks ~~~
+	xor edi, edi
+	BRICK_INIT_LOOP:
+		invoke getGameObjectIndex, ecx
+
+		; TODO set collision func
+
+		lea ebx, Brick4hp
+		mov DWORD ptr [esi + go_sprite], ebx
+		mov DWORD ptr [esi + go_exists], TRUE
+		mov DWORD ptr [esi + go_htbxX], 10
+		mov DWORD ptr [esi + go_htbxY], 10
+
+		; Set positions
+		mov DWORD ptr [esi + go_x], baseBrickX
+		mov DWORD ptr [esi + go_y], baseBrickY
+		mov eax, [xOffsetFromBaseBrick + edi] 
+		add DWORD ptr [esi + go_x], eax
+		mov eax, [yOffsetFromBaseBrick + edi] 
+		add DWORD ptr [esi + go_y], eax
+
+		add edi, 4
+		.if edi == 80
+			xor edi, edi
+		.endif
+		inc ecx
+	cmp ecx, 110
+	jne BRICK_INIT_LOOP
 
 
 	gameLoop:
