@@ -7,6 +7,9 @@ includelib drd.lib
 
 .data
 
+; TODO *** BEFORE MERGING *** a bug exists ONLY IN THIS BRANCH where enemies stop shhoting bullet eventually (legacy commnet)
+; The bug mentioned above is fixed in this branch, but exists in master, will be fixed on merge
+
 ; ----------------- equ declaration ----------------
 
 Stage_MENU equ 0 ; Stage enum
@@ -236,14 +239,14 @@ basicEnemyAi proc, object:DWORD ; TODO make sure player losesy
 	; ~~~ shoot bullets ~~~
 
 	invoke generateRandom ; Generate a random number to decide if to shoot or not
-	invoke modulu, eax, 10000
-	cmp eax, 0 ; eax % 10000 == 0
+	invoke modulu, eax, 5000
+	cmp eax, 0 ; eax % 5000 == 0
 	jne EXIT_BE_AI
-	invoke modulu, FRAME_COUNT, 301
+	invoke modulu, FRAME_COUNT, 600
 	cmp eax, 0
 	jbe EXIT_BE_AI
 
-	; 1:10000 chance to get here
+	; 1:5000 chance to get here
 
 	mov ecx, 0
 	CHECK_BULLET_SHOOTING:
@@ -251,8 +254,9 @@ basicEnemyAi proc, object:DWORD ; TODO make sure player losesy
 		cmp DWORD ptr [esi + go_exists], FALSE
 		je CONTINUE_CBS
 		mov eax, [esi + go_x]
-		cmp eax, [ebx + go_x]
-		jne CONTINUE_CBS
+		sub eax, [ebx + go_x]
+		cmp eax, 1
+		jg CONTINUE_CBS
 		mov eax, [esi + go_y]
 		cmp eax, [ebx + go_y]
 		ja EXIT_BE_AI
@@ -304,13 +308,16 @@ enemyBulletCollision proc, object:DWORD
 	push eax
 	push ebx
 
+	.if DWORD ptr [ebx + go_exists] == FALSE
+		ret 4
+	.endif
+
 	mov ebx, object ; The object which is dying
-    xor eax, eax ; eax = 0
-	add al, BULLET_AMOUNT ; eax = BULLET_AMOUNT
-	dec eax ; eax = BULLET_AMOUNT - 1
+	mov al, BULLET_AMOUNT ; eax = BULLET_AMOUNT
+	dec al ; eax = BULLET_AMOUNT - 1
 	mov BULLET_AMOUNT, al
 	
-	invoke defaultCollisionFunc, ebx
+	mov DWORD ptr [ebx + go_exists], FALSE
 	
 	pop ebx
 	pop eax
@@ -427,6 +434,7 @@ handleGameObject proc, object:DWORD
 	CANT_GO_FURTHER_Y:
 	push ebx
 	call DWORD ptr [ebx + go_collFunc]
+	jmp FINISH_HANDLING
 
 	DRAW_OBJECT:
 	invoke drd_imageDraw, [ebx + go_sprite], [ebx + go_x], [ebx + go_y] ; Draw the object
@@ -582,6 +590,7 @@ main proc
 	jne ENEMY_BULLET_SETUP_LOOP
 	; ~~~ Initilize bricks ~~~
 	xor edi, edi
+
 	BRICK_INIT_LOOP:
 		invoke getGameObjectIndex, ecx
 
@@ -603,18 +612,18 @@ main proc
 		
 		; Add x offset
 
-		mov eax, ecx ; TODO fix
+		mov eax, ecx
 		push ecx
 		mov ecx, 10
 		div ecx
 		pop ecx
 		sub eax, 7
-		mov edx, baseBrickX
+		mov edx, 208
 		mul edx
 		add DWORD ptr [esi + go_x], eax
 
 		add edi, 4
-		.if edi == 44
+		.if edi == 40
 			xor edi, edi
 		.endif
 		inc ecx
