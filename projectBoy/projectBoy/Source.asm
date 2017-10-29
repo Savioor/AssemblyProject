@@ -11,6 +11,7 @@ includelib drd.lib
 
 Stage_MENU equ 0 ; Stage enum
 Stage_PLAYING equ 1
+Stage_GAMEOVER equ 2
 
 FALSE equ 0 ; Boolean variables
 TRUE equ 1
@@ -125,7 +126,7 @@ LEADER_SPOKE BYTE FALSE ; Did the leader say his word?
 JUMP_DOWN BYTE FALSE ; Should we go lower?
 SPEED_STAGE BYTE 0 ; How fast we go? (TODO or not depending if needed more complexity)
 BULLET_AMOUNT BYTE 0 ; How many bullets alive now?
-GAME_STAGE DWORD Stage_PLAYING ; Stage_MENU & Stage_PLAYING ( TODO when done with game change to Stage_MENU)
+GAME_STAGE DWORD Stage_PLAYING ; Stage_MENU & Stage_PLAYING & Stage_GAMEOVER ( TODO when done with game change to Stage_MENU)
 FRAME_COUNT DWORD 0 ; How many frames have passed?
 
 .code
@@ -161,6 +162,11 @@ getGameObjectIndex proc, index:DWORD
 	pop eax
 	ret 4
 getGameObjectIndex endp
+
+playerLost proc, object:DWORD
+	mov GAME_STAGE, Stage_GAMEOVER	
+	ret 4
+playerLost endp
 
 basicEnemyAi proc, object:DWORD ; TODO make sure player losesy
 	push ebx ; I use these registes
@@ -610,8 +616,6 @@ main proc
 	BRICK_INIT_LOOP:
 		invoke getGameObjectIndex, ecx
 
-		; TODO set collision func
-
 		lea ebx, Brick4hp
 		mov DWORD ptr [esi + go_sprite], ebx
 		mov DWORD ptr [esi + go_exists], TRUE
@@ -680,7 +684,21 @@ main proc
 		mov JUMP_DOWN, FALSE
 		invoke drd_processMessages ; Check keypresses
 		inc FRAME_COUNT ; Another frame bites the dust
-	jmp gameLoop
+	cmp GAME_STAGE, Stage_PLAYING
+	je gameLoop
+	
+	; TODO this V
+	; ~~~ Game over setup ~~~
+
+	invoke drd_pixelsClear, 0
+	; Draw game over screen
+	invoke drd_flip
+
+	; ~~~ Game over loop ~~~
+	gameOver:
+		invoke drd_processMessages
+	jmp gameOver
+	
 
 	exitGame:
 
