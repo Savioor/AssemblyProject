@@ -35,8 +35,13 @@ go_coll equ 44
 go_points equ 48
 go_collFunc equ 52
 
+imageObjectSize equ 20 ; The size of the Img<> struct
+
 enemy_width equ 20 ; Enemy sizes (hitbox)
 enemy_height equ 30
+
+baseBrickX equ 168 ; For brick intialazation
+baseBrickY equ 450
 
 ; ---------------- Object defenition ----------------
 
@@ -54,7 +59,7 @@ GameObject STRUCT
 	yFreq DWORD 1 ; same but y
 	checkCollision DWORD FALSE ; Is this a bullet (basiclly)
 	pointsOnKill DWORD 0 ; How many points do you get when this shit dies
-	collisionFunc DWORD ofst defaultCollisionFunc ; What happenes when someone touches you
+	collisionFunc DWORD ofst defaultCollisionFunc ; What happenes when someone touches you ;)
 GameObject ENDS
 
 ; ----------- Image location declaration -----------
@@ -63,6 +68,10 @@ d_Player_Still BYTE "Sprites/Player/Player_Regular.bmp", 0
 d_Player_Bullet BYTE "Sprites/Player/Player_Bullet.bmp", 0
 d_Enemy0 BYTE "Sprites/Enemies/Enemy0.bmp", 0
 d_EnemyBullet0 BYTE "Sprites/Enemies/Enemy_Bullet.bmp", 0
+d_Brick4hp BYTE "Sprites/Shields/Brick4hp.bmp", 0
+d_Brick3hp BYTE "Sprites/Shields/Brick3hp.bmp", 0
+d_Brick2hp BYTE "Sprites/Shields/Brick2hp.bmp", 0
+d_Brick1hp BYTE "Sprites/Shields/Brick1hp.bmp", 0
 
 ; ------------ Image memory decleration -------------
 
@@ -70,6 +79,12 @@ Player_Still Img<>
 Player_Bullet Img<>
 Enemy0 Img<>
 EnemyBullet0 Img<>
+; The next 4 lines are kinda equivelent to 'Brick4hp Img 4 dup (<?>)'
+; Img<> size is 20 bytes
+Brick4hp Img<>
+Brick3hp Img<> ; TODO this texture is bad, put some holes in it
+Brick2hp Img<>
+Brick1hp Img<>
 
 ; --------------- Object Declaration ---------------
 
@@ -77,15 +92,40 @@ allGameObjects GameObject 110 dup (<?>)
 playerObject GameObject<>
 playerBullet GameObject<>
 
+; ----------- Brick location declaration -----------
+;
+; each @ is 10x10 pixels, - are defined by surrounding @ or markings
+; coordinates are adjusted from base point (marked in drawing)
+;
+;---------------------------------
+;----------@@@@----------@@@@-----
+;|---168--|@@@@|---168--|@@@@-----
+;----------@--@----------@--@-----
+;-----base-^----------------------
+
+; Base brick x & y declaration
+
+;baseBrickX equ 168 (actual declaration - line ~40)
+;baseBrickY equ 450
+
+; Y Offest array
+
+yOffsetFromBaseBrick DWORD 0, 0, -10, -10, -10, -10, -20, -20, -20, -20
+
+; X offset array:
+
+xOffsetFromBaseBrick DWORD 0, 30, 0, 10, 20, 30, 0, 10, 20, 30
+
+
 ; ---------------------- flags ---------------------
 
 
 MOVE_LEFT BYTE FALSE ; Are the invaders moving left? 
-LEADER_SPOKE BYTE FALSE ; Did the leader say his word? 
+LEADER_SPOKE BYTE FALSE ; Did the leader say his word?
 JUMP_DOWN BYTE FALSE ; Should we go lower?
-SPEED_STAGE BYTE 0 ; How fast we go?
+SPEED_STAGE BYTE 0 ; How fast we go? (TODO or not depending if needed more complexity)
 BULLET_AMOUNT BYTE 0 ; How many bullets alive now?
-GAME_STAGE DWORD Stage_PLAYING ; Stage_MENU & Stage_PLAYING ( TODO when done with game change to Stage.MENU)
+GAME_STAGE DWORD Stage_PLAYING ; Stage_MENU & Stage_PLAYING ( TODO when done with game change to Stage_MENU)
 FRAME_COUNT DWORD 0 ; How many frames have passed?
 
 .code
@@ -111,11 +151,13 @@ modulu endp
 
 getGameObjectIndex proc, index:DWORD
 	push eax
+	push edx
 	mov esi, index ; Get the the index of the current object
 	mov eax, gameObjectSize
 	mul esi
 	mov esi, eax
 	add esi, ofst allGameObjects
+	pop edx
 	pop eax
 	ret 4
 getGameObjectIndex endp
@@ -200,23 +242,24 @@ basicEnemyAi proc, object:DWORD ; TODO make sure player losesy
 	; ~~~ shoot bullets ~~~
 
 	invoke generateRandom ; Generate a random number to decide if to shoot or not
-	invoke modulu, eax, 10000
-	cmp eax, 0 ; eax % 10000 == 0
+	invoke modulu, eax, 5000
+	cmp eax, 0 ; eax % 5000 == 0
 	jne EXIT_BE_AI
-	invoke modulu, FRAME_COUNT, 301
+	invoke modulu, FRAME_COUNT, 600
 	cmp eax, 0
 	jbe EXIT_BE_AI
 
-	; 1:10000 chance to get here
+	; 1:5000 chance to get here
 
 	mov ecx, 0
 	CHECK_BULLET_SHOOTING:
 		invoke getGameObjectIndex, ecx
 		cmp DWORD ptr [esi + go_exists], FALSE
-		je CONTINUE_CBS
+		je CONTINUE_CBS 
 		mov eax, [esi + go_x]
-		cmp eax, [ebx + go_x]
-		jne CONTINUE_CBS
+		sub eax, [ebx + go_x]
+		cmp eax, 1
+		jg CONTINUE_CBS
 		mov eax, [esi + go_y]
 		cmp eax, [ebx + go_y]
 		ja EXIT_BE_AI
@@ -230,8 +273,8 @@ basicEnemyAi proc, object:DWORD ; TODO make sure player losesy
 	jae EXIT_BE_AI
 	inc al
 	mov BULLET_AMOUNT, al ; update bullet amount
-
-	mov ecx, 55
+ 
+	   mov ecx, 55
 	FIND_VACANT_BULLET:
 		invoke getGameObjectIndex, ecx 	; Get potential bullet index
 		cmp DWORD ptr [esi + go_exists], FALSE
@@ -264,17 +307,32 @@ defaultCollisionFunc proc, object:DWORD ; TODO add points when you ded
 	ret 4
 defaultCollisionFunc endp
 
+brickCollisionFunc proc, object:DWORD
+	push ebx
+
+	mov ebx, object
+	cmp DWORD ptr [ebx + go_sprite], ofst Brick1hp
+	je DIE
+	add DWORD ptr [ebx + go_sprite], imageObjectSize
+	jmp EXIT_FUNC
+	DIE:
+	mov DWORD ptr [ebx + go_exists], FALSE
+
+	EXIT_FUNC:
+	pop ebx
+	ret 4
+brickCollisionFunc endp
+
 enemyBulletCollision proc, object:DWORD
 	push eax
 	push ebx
 
 	mov ebx, object ; The object which is dying
-    xor eax, eax ; eax = 0
-	add al, BULLET_AMOUNT ; eax = BULLET_AMOUNT
-	dec eax ; eax = BULLET_AMOUNT - 1
+	mov al, BULLET_AMOUNT ; eax = BULLET_AMOUNT
+	dec al ; eax = BULLET_AMOUNT - 1
 	mov BULLET_AMOUNT, al
 	
-	invoke defaultCollisionFunc, ebx
+	mov DWORD ptr [ebx + go_exists], FALSE
 	
 	pop ebx
 	pop eax
@@ -310,7 +368,7 @@ checkCollision proc, object:DWORD
 		CHECK_COLLISION_Y:
 
 		mov eax, [ebx + go_y] ; yL of checker
-		add eax, [ebx + go_htbxY] ; yH of checker
+		add eax, [ebx + go_htbxY] ; yH of checker 
 		mov edx, [esi + go_y] ; yL of checked
 		add edx, [esi + go_htbxY] ; yH of checked
 		.if DWORD ptr [ebx + go_y] <= edx && eax > [esi + go_y]
@@ -324,6 +382,7 @@ checkCollision proc, object:DWORD
 		call DWORD ptr [esi + go_collFunc]
 		push ebx
 		call DWORD ptr [ebx + go_collFunc]
+		jmp FINISH_COLLISION
 		
 		CONTINUE_COLLISION_LOOP:
 		inc ecx
@@ -391,6 +450,7 @@ handleGameObject proc, object:DWORD
 	CANT_GO_FURTHER_Y:
 	push ebx
 	call DWORD ptr [ebx + go_collFunc]
+	jmp FINISH_HANDLING
 
 	DRAW_OBJECT:
 	invoke drd_imageDraw, [ebx + go_sprite], [ebx + go_x], [ebx + go_y] ; Draw the object
@@ -459,6 +519,10 @@ main proc
 	invoke drd_imageLoadFile, ofst d_Player_Bullet, ofst Player_Bullet
 	invoke drd_imageLoadFile, ofst d_Enemy0, ofst Enemy0
 	invoke drd_imageLoadFile, ofst d_EnemyBullet0, ofst EnemyBullet0
+	invoke drd_imageLoadFile, ofst d_Brick4hp, ofst Brick4hp
+	invoke drd_imageLoadFile, ofst d_Brick3hp, ofst Brick3hp
+	invoke drd_imageLoadFile, ofst d_Brick2hp, ofst Brick2hp
+	invoke drd_imageLoadFile, ofst d_Brick1hp, ofst Brick1hp
 	
 	jmp gameSetup ; TODO Remove when game finished
 
@@ -540,6 +604,48 @@ main proc
 		inc ecx
 	cmp ecx, 70
 	jne ENEMY_BULLET_SETUP_LOOP
+	; ~~~ Initilize bricks ~~~
+	xor edi, edi
+
+	BRICK_INIT_LOOP:
+		invoke getGameObjectIndex, ecx
+
+		; TODO set collision func
+
+		lea ebx, Brick4hp
+		mov DWORD ptr [esi + go_sprite], ebx
+		mov DWORD ptr [esi + go_exists], TRUE
+		mov DWORD ptr [esi + go_htbxX], 10
+		mov DWORD ptr [esi + go_htbxY], 10
+		mov DWORD ptr [esi + go_collFunc], ofst brickCollisionFunc
+
+		; Set positions
+		mov DWORD ptr [esi + go_x], baseBrickX
+		mov DWORD ptr [esi + go_y], baseBrickY
+		mov eax, [xOffsetFromBaseBrick + edi] 
+		add DWORD ptr [esi + go_x], eax
+		mov eax, [yOffsetFromBaseBrick + edi] 
+		add DWORD ptr [esi + go_y], eax
+		
+		; Add x offset
+
+		mov eax, ecx
+		push ecx
+		mov ecx, 10
+		div ecx
+		pop ecx
+		sub eax, 7
+		mov edx, 208
+		mul edx
+		add DWORD ptr [esi + go_x], eax
+
+		add edi, 4
+		.if edi == 40
+			xor edi, edi
+		.endif
+		inc ecx
+	cmp ecx, 110
+	jne BRICK_INIT_LOOP
 
 
 	gameLoop:
