@@ -7,9 +7,6 @@ includelib drd.lib
 
 .data
 
-; TODO *** BEFORE MERGING *** a bug exists ONLY IN THIS BRANCH where enemies stop shhoting bullet eventually (legacy commnet)
-; The bug mentioned above is fixed in this branch, but exists in master, will be fixed on merge
-
 ; ----------------- equ declaration ----------------
 
 Stage_MENU equ 0 ; Stage enum
@@ -82,10 +79,10 @@ Player_Still Img<>
 Player_Bullet Img<>
 Enemy0 Img<>
 EnemyBullet0 Img<>
-; The next 4 lines are kinda equivelent to Brick4hp Img 4 dup (<?>)
+; The next 4 lines are kinda equivelent to 'Brick4hp Img 4 dup (<?>)'
 ; Img<> size is 20 bytes
 Brick4hp Img<>
-Brick3hp Img<>
+Brick3hp Img<> ; TODO this texture is bad, put some holes in it
 Brick2hp Img<>
 Brick1hp Img<>
 
@@ -106,7 +103,9 @@ playerBullet GameObject<>
 ;----------@--@----------@--@-----
 ;-----base-^----------------------
 
-;baseBrickX equ 168 (actual declaration - lines 41 and 42)
+; Base brick x & y declaration
+
+;baseBrickX equ 168 (actual declaration - line ~40)
 ;baseBrickY equ 450
 
 ; Y Offest array
@@ -122,11 +121,11 @@ xOffsetFromBaseBrick DWORD 0, 30, 0, 10, 20, 30, 0, 10, 20, 30
 
 
 MOVE_LEFT BYTE FALSE ; Are the invaders moving left? 
-LEADER_SPOKE BYTE FALSE ; Did the leader say his word? 
+LEADER_SPOKE BYTE FALSE ; Did the leader say his word?
 JUMP_DOWN BYTE FALSE ; Should we go lower?
-SPEED_STAGE BYTE 0 ; How fast we go?
+SPEED_STAGE BYTE 0 ; How fast we go? (TODO or not depending if needed more complexity)
 BULLET_AMOUNT BYTE 0 ; How many bullets alive now?
-GAME_STAGE DWORD Stage_PLAYING ; Stage_MENU & Stage_PLAYING ( TODO when done with game change to Stage.MENU)
+GAME_STAGE DWORD Stage_PLAYING ; Stage_MENU & Stage_PLAYING ( TODO when done with game change to Stage_MENU)
 FRAME_COUNT DWORD 0 ; How many frames have passed?
 
 .code
@@ -256,7 +255,7 @@ basicEnemyAi proc, object:DWORD ; TODO make sure player losesy
 	CHECK_BULLET_SHOOTING:
 		invoke getGameObjectIndex, ecx
 		cmp DWORD ptr [esi + go_exists], FALSE
-		je CONTINUE_CBS
+		je CONTINUE_CBS 
 		mov eax, [esi + go_x]
 		sub eax, [ebx + go_x]
 		cmp eax, 1
@@ -274,8 +273,8 @@ basicEnemyAi proc, object:DWORD ; TODO make sure player losesy
 	jae EXIT_BE_AI
 	inc al
 	mov BULLET_AMOUNT, al ; update bullet amount
-
-	mov ecx, 55
+ 
+	   mov ecx, 55
 	FIND_VACANT_BULLET:
 		invoke getGameObjectIndex, ecx 	; Get potential bullet index
 		cmp DWORD ptr [esi + go_exists], FALSE
@@ -369,7 +368,7 @@ checkCollision proc, object:DWORD
 		CHECK_COLLISION_Y:
 
 		mov eax, [ebx + go_y] ; yL of checker
-		add eax, [ebx + go_htbxY] ; yH of checker
+		add eax, [ebx + go_htbxY] ; yH of checker 
 		mov edx, [esi + go_y] ; yL of checked
 		add edx, [esi + go_htbxY] ; yH of checked
 		.if DWORD ptr [ebx + go_y] <= edx && eax > [esi + go_y]
