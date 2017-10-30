@@ -163,7 +163,8 @@ LEADER_SPOKE BYTE FALSE ; Did the leader say his word?
 JUMP_DOWN BYTE FALSE ; Should we go lower?
 SPEED_STAGE BYTE 0 ; How fast we go? (TODO or not depending if needed more complexity)
 BULLET_AMOUNT BYTE 0 ; How many bullets alive now?
-GAME_STAGE DWORD Stage_MENU ; options for this flag are shown in the game stages enum defined at equ declarations
+SCORE BYTE 0 ; How many enemies did the player kill
+GAME_STAGE BYTE Stage_MENU ; options for this flag are shown in the game stages enum defined at equ declarations
 FRAME_COUNT DWORD 0 ; How many frames have passed?
 
 ;#endregion
@@ -283,8 +284,11 @@ basicEnemyAi proc, object:DWORD ; TODO make sure player losesy
 		mov DWORD ptr [ebx + go_xV], -1
 	.endif
 
-	.if JUMP_DOWN == TRUE ; Move one row down
+	.if JUMP_DOWN == TRUE ; Move one row down and check for player losing
 		add DWORD ptr [ebx + go_y], enemy_height
+		.if DWORD ptr [ebx + go_y] >= 420
+			mov GAME_STAGE, Stage_GAMEOVER ; The invaders are too low
+		.endif
 	.endif
 
 	; ~~~ shoot bullets ~~~
@@ -353,6 +357,18 @@ defaultCollisionFunc proc, object:DWORD ; TODO add points when you ded
 	pop ebx
 	ret 4
 defaultCollisionFunc endp
+
+; The collision function that runs when a bullet hits an enemy
+enemyCollisionFunc proc, object:DWORD
+	push ebx
+
+	mov ebx, object
+	mov DWORD ptr [ebx + go_exists], FALSE ; set the object exists variable to false
+	inc SCORE ; Increase the player score
+
+	pop ebx
+	ret 4
+enemyCollisionFunc endp
 
 ; The collision function that runs when something hits a brick
 brickCollisionFunc proc, object:DWORD
@@ -660,6 +676,7 @@ initGameStartup proc
 		mov DWORD ptr [esi + go_htbxY], enemy_height ; Height
 		mov DWORD ptr [esi + go_ai], ofst basicEnemyAi ; Set their commanding AI to basicEnemyAi(DWORD object)
 		mov DWORD ptr [esi + go_points], 1 ; When an enemy dies he gives one point
+		mov DWORD ptr [esi + go_collFunc], ofst enemyCollisionFunc ; Set collision function
 
 		inc ecx
 	cmp ecx, 55
@@ -702,6 +719,7 @@ initGameStartup endp
 ; Run this everytime I want to restart/start a game session (TODO more cleanup)
 initGame proc
 	mov FRAME_COUNT, 0 ; Reset the frame count because a new game has started
+	mov SCORE, 0 ; Reset the score
 	; ~~~ Player setup ~~~
 	mov playerObject.x, 434 ; Player x position
 	mov playerObject.y, 500 ; Player y position
@@ -823,8 +841,7 @@ main proc
 	;#region menu
 
 	menuSetup:
-	; Clear the screen
-	invoke drd_pixelsClear, 0
+
 	; Draw the main menu screen
 	invoke drd_imageDraw, ofst mainMenu, 0, 0
 	invoke drd_flip
@@ -871,6 +888,9 @@ main proc
 		;#endregion
 
 		; End of frame stuff
+		cmp SCORE, 55
+		je playerWonSetup
+
 		invoke drd_flip ; Draw all the things
 		mov playerObject.xVelocity, 0 ; Nullify the player speed
 		mov LEADER_SPOKE, FALSE
@@ -885,14 +905,30 @@ main proc
 
 	;#endregion
 
-	; TODO be able to win lol
+	;#region player won
+
+	playerWonSetup:
+	; Set stage
+	mov GAME_STAGE, Stage_WIN
+	; Draw the screen
+	invoke drd_imageDraw, ofst winScreen, 0, 0
+	invoke drd_flip
+
+	winLoop:
+		invoke drd_processMessages
+	cmp GAME_STAGE, Stage_WIN
+	je winLoop
+	cmp GAME_STAGE, Stage_PLAYING
+	je gameSetup
+	cmp GAME_STAGE, Stage_MENU
+	je menuSetup
+
+	;#endregion
 
 	;#region gameover
 
 	gameOverSetup:
 
-	; Clear the screen
-	invoke drd_pixelsClear, 0
 	; Draw game over screen
 	invoke drd_imageDraw, ofst gameoverScreen, 0, 0
 	invoke drd_flip
@@ -910,7 +946,7 @@ main proc
 	;#endregion
 
 	exitGame:
-
+	; TODO exit the game properly
 	ret
 main endp
 
