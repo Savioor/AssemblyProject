@@ -557,50 +557,13 @@ keyhandle proc, keycode:DWORD
 	ret 4
 keyhandle endp
 
-main proc
-	
-	; general setup
-	invoke drd_init, 1000, 600, 0
-	invoke drd_setKeyHandler, ofst keyhandle ; TODO masm key input
-	invoke drd_imageLoadFile, ofst d_Player_Still, ofst Player_Still
-	invoke drd_imageLoadFile, ofst d_Player_Bullet, ofst Player_Bullet
-	invoke drd_imageLoadFile, ofst d_Enemy0, ofst Enemy0
-	invoke drd_imageLoadFile, ofst d_EnemyBullet0, ofst EnemyBullet0
-	invoke drd_imageLoadFile, ofst d_Brick4hp, ofst Brick4hp
-	invoke drd_imageLoadFile, ofst d_Brick3hp, ofst Brick3hp
-	invoke drd_imageLoadFile, ofst d_Brick2hp, ofst Brick2hp
-	invoke drd_imageLoadFile, ofst d_Brick1hp, ofst Brick1hp
-	invoke drd_imageLoadFile, ofst d_background, ofst background
-	invoke drd_imageLoadFile, ofst d_gameoverScreen, ofst gameoverScreen
-	invoke drd_imageLoadFile, ofst d_mainMenu, ofst mainMenu
-	invoke drd_imageLoadFile, ofst d_winScreen, ofst winScreen
-	
-	jmp gameSetup ; TODO Remove when game finished
-
-	menuSetup:
-
-	menuLoop:
-		invoke drd_pixelsClear, 0
-
-		invoke drd_processMessages
-	jmp menuLoop
-	
-	;#region game setup extended
-
-	gameSetup:
-	mov FRAME_COUNT, 0 ; Reset the frame count because a new game has started
+; Run at the startup of the program, overall this must be run only once
+initGameStartup proc
 	; ~~~ Player setup ~~~
 	mov playerObject.collisionFunc, ofst playerLost
-	mov playerObject.x, 434 ; Player x position
-	mov playerObject.y, 500 ; Player y position
 	mov playerObject.hitBoxXOffset, 132 ; Player width
 	mov playerObject.hitBoxYOffset, 40 ; Player height
-	mov playerObject.exists, TRUE ; The player starts out alive
-	lea eax, Player_Still
-	mov playerObject.sprite, eax ; The default player sprite
 	; ~~~ Player bullet setup ~~~
-	lea eax, Player_Bullet
-	mov playerBullet.sprite, eax ; The default bullet sprite
 	mov playerBullet.yVelocity, -1 ; Bullet moves at a speed of 1 upwards
 	mov playerBullet.yFreq, 4 ; The bullet moves every 4 frames
 	mov playerBullet.hitBoxXOffset, 13 ; The bullet width is 13
@@ -611,14 +574,67 @@ main proc
 	xor ecx, ecx
 	ENEMY_SETUP_LOOP:
 		invoke getGameObjectIndex, ecx ; Get the index
-		lea ebx, Enemy0
-		mov [esi + go_sprite], ebx ; Set the enemy default sprite
-		mov DWORD ptr [esi + go_exists], TRUE ; The enemies start out alive
+
 		mov DWORD ptr [esi + go_xFrq], 16 ; They move once every 16 frames
 		mov DWORD ptr [esi + go_htbxX], enemy_width ; Width
 		mov DWORD ptr [esi + go_htbxY], enemy_height ; Height
 		mov DWORD ptr [esi + go_ai], ofst basicEnemyAi ; Set their commanding AI to basicEnemyAi(DWORD object)
 		mov DWORD ptr [esi + go_points], 1 ; When an enemy dies he gives one point
+
+		inc ecx
+	cmp ecx, 55
+	jne ENEMY_SETUP_LOOP
+	; ~~~ Initilize enemy bullets ~~~
+	ENEMY_BULLET_SETUP_LOOP:
+		invoke getGameObjectIndex, ecx
+
+		mov DWORD ptr [esi + go_coll], TRUE
+		mov DWORD ptr [esi + go_htbxX], 13
+		mov DWORD ptr [esi + go_htbxY], 25
+		mov DWORD ptr [esi + go_yFrq], 12
+		mov DWORD ptr [esi + go_yV], 1
+		mov DWORD ptr [esi + go_collFunc], ofst enemyBulletCollision
+
+		inc ecx
+	cmp ecx, 70
+	jne ENEMY_BULLET_SETUP_LOOP
+	; ~~~ Initilize bricks ~~~
+	xor edi, edi
+
+	BRICK_INIT_LOOP:
+		invoke getGameObjectIndex, ecx
+
+		mov DWORD ptr [esi + go_htbxX], 10
+		mov DWORD ptr [esi + go_htbxY], 10
+		mov DWORD ptr [esi + go_collFunc], ofst brickCollisionFunc
+		
+		inc ecx
+	cmp ecx, 110
+	jne BRICK_INIT_LOOP
+	ret
+initGameStartup endp
+
+; Run this everytime I want to restart/start a game session
+initGame proc
+	mov FRAME_COUNT, 0 ; Reset the frame count because a new game has started
+	; ~~~ Player setup ~~~
+	mov playerObject.x, 434 ; Player x position
+	mov playerObject.y, 500 ; Player y position
+	mov playerObject.exists, TRUE ; The player starts out alive
+	lea eax, Player_Still
+	mov playerObject.sprite, eax ; The default player sprite
+	; ~~~ Player bullet setup ~~~
+	lea eax, Player_Bullet
+	mov playerBullet.sprite, eax ; The default bullet sprite
+
+	; ~~~ Enemy setup ~~~
+	xor ecx, ecx
+	ENEMY_SETUP_LOOP:
+		invoke getGameObjectIndex, ecx ; Get the index
+		lea ebx, Enemy0
+		mov [esi + go_sprite], ebx ; Set the enemy default sprite
+		mov DWORD ptr [esi + go_exists], TRUE ; The enemies start out 
+
 		; ~-~ Allocate the enemies on screen ~-~
 		mov eax, ecx ; X
 		inc eax ; increase by one so division by 0 won't exist
@@ -647,13 +663,7 @@ main proc
 
 		lea ebx, EnemyBullet0
 		mov DWORD ptr [esi + go_sprite], ebx
-		mov DWORD ptr [esi + go_coll], TRUE
 		mov DWORD ptr [esi + go_exists], FALSE
-		mov DWORD ptr [esi + go_htbxX], 13
-		mov DWORD ptr [esi + go_htbxY], 25
-		mov DWORD ptr [esi + go_yFrq], 12
-		mov DWORD ptr [esi + go_yV], 1
-		mov DWORD ptr [esi + go_collFunc], ofst enemyBulletCollision
 
 		inc ecx
 	cmp ecx, 70
@@ -667,9 +677,6 @@ main proc
 		lea ebx, Brick4hp
 		mov DWORD ptr [esi + go_sprite], ebx
 		mov DWORD ptr [esi + go_exists], TRUE
-		mov DWORD ptr [esi + go_htbxX], 10
-		mov DWORD ptr [esi + go_htbxY], 10
-		mov DWORD ptr [esi + go_collFunc], ofst brickCollisionFunc
 
 		; Set positions
 		mov DWORD ptr [esi + go_x], baseBrickX
@@ -698,8 +705,40 @@ main proc
 		inc ecx
 	cmp ecx, 110
 	jne BRICK_INIT_LOOP
+	ret
+initGame endp
 
-	;#endregion
+main proc
+	
+	; general setup
+	invoke drd_init, 1000, 600, 0
+	invoke drd_setKeyHandler, ofst keyhandle ; TODO masm key input
+	invoke drd_imageLoadFile, ofst d_Player_Still, ofst Player_Still
+	invoke drd_imageLoadFile, ofst d_Player_Bullet, ofst Player_Bullet
+	invoke drd_imageLoadFile, ofst d_Enemy0, ofst Enemy0
+	invoke drd_imageLoadFile, ofst d_EnemyBullet0, ofst EnemyBullet0
+	invoke drd_imageLoadFile, ofst d_Brick4hp, ofst Brick4hp
+	invoke drd_imageLoadFile, ofst d_Brick3hp, ofst Brick3hp
+	invoke drd_imageLoadFile, ofst d_Brick2hp, ofst Brick2hp
+	invoke drd_imageLoadFile, ofst d_Brick1hp, ofst Brick1hp
+	invoke drd_imageLoadFile, ofst d_background, ofst background
+	invoke drd_imageLoadFile, ofst d_gameoverScreen, ofst gameoverScreen
+	invoke drd_imageLoadFile, ofst d_mainMenu, ofst mainMenu
+	invoke drd_imageLoadFile, ofst d_winScreen, ofst winScreen
+	invoke initGameStartup
+	
+	jmp gameSetup ; TODO Remove when game finished
+
+	menuSetup:
+
+	menuLoop:
+		invoke drd_pixelsClear, 0
+
+		invoke drd_processMessages
+	jmp menuLoop
+	
+	gameSetup:
+	invoke initGame
 
 	gameLoop:
 		invoke drd_pixelsClear, 0
