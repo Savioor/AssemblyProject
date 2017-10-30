@@ -7,6 +7,8 @@ includelib drd.lib
 
 .data
 
+; TODO make a shortned game init that runs every time I initilize a game and a full one that runs in the beggining of the game
+
 ; ----------------- equ declaration ----------------
 
 Stage_MENU equ 0 ; Stage enum
@@ -480,10 +482,17 @@ keyhandle proc, keycode:DWORD
 	; key right = 39
 	; key left = 37
 	; spacebar = 20
+	; R = 52h
 
 	cmp GAME_STAGE, Stage_MENU ; Make sure I'm using the correct keyset for the menu and game
 	je menuKeys
-	
+	cmp GAME_STAGE, Stage_GAMEOVER
+	je redirectionKeys
+	cmp GAME_STAGE, Stage_WIN
+	je redirectionKeys
+
+	;#region Key handling during game
+
 	cmp keycode, 39
 	jne NOT_KEY_RIGHT
 	
@@ -520,7 +529,30 @@ keyhandle proc, keycode:DWORD
 	NO_KEY_MATCH:
 	ret 4
 
+	;#endregion
+
+	;#region Key handling during menu
+
 	menuKeys:
+	
+
+	NO_MENU_KEY_MATCH:
+	ret 4
+
+	;#endregion
+
+	;#Region key handling during lose or win
+
+	redirectionKeys:
+
+	cmp keycode, 52h
+	je RETRY_GAME
+	ret 4 ; TODO add return to menu
+	
+	RETRY_GAME:
+	mov GAME_STAGE, Stage_PLAYING
+
+	;#endregion
 
 	ret 4
 keyhandle endp
@@ -553,10 +585,12 @@ main proc
 		invoke drd_processMessages
 	jmp menuLoop
 	
+	;#region game setup extended
+
 	gameSetup:
-	
 	mov FRAME_COUNT, 0 ; Reset the frame count because a new game has started
 	; ~~~ Player setup ~~~
+	mov playerObject.collisionFunc, ofst playerLost
 	mov playerObject.x, 434 ; Player x position
 	mov playerObject.y, 500 ; Player y position
 	mov playerObject.hitBoxXOffset, 132 ; Player width
@@ -665,6 +699,7 @@ main proc
 	cmp ecx, 110
 	jne BRICK_INIT_LOOP
 
+	;#endregion
 
 	gameLoop:
 		invoke drd_pixelsClear, 0
