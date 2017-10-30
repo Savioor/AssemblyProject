@@ -12,6 +12,7 @@ includelib drd.lib
 Stage_MENU equ 0 ; Stage enum
 Stage_PLAYING equ 1
 Stage_GAMEOVER equ 2
+Stage_WIN equ 3
 
 FALSE equ 0 ; Boolean variables
 TRUE equ 1
@@ -73,6 +74,10 @@ d_Brick4hp BYTE "Sprites/Shields/Brick4hp.bmp", 0
 d_Brick3hp BYTE "Sprites/Shields/Brick3hp.bmp", 0
 d_Brick2hp BYTE "Sprites/Shields/Brick2hp.bmp", 0
 d_Brick1hp BYTE "Sprites/Shields/Brick1hp.bmp", 0
+d_background BYTE "Sprites/background.bmp", 0
+d_gameoverScreen BYTE "Sprites/Screens/gameOverScreen.bmp", 0
+d_winScreen BYTE "Sprites/Screens/winScreen.bmp", 0
+d_mainMenu BYTE "Sprites/Screens/menuScreen.bmp", 0
 
 ; ------------ Image memory decleration -------------
 
@@ -86,6 +91,10 @@ Brick4hp Img<>
 Brick3hp Img<> ; TODO this texture is bad, put some holes in it
 Brick2hp Img<>
 Brick1hp Img<>
+background Img<>
+gameoverScreen Img<>
+winScreen Img<>
+mainMenu Img<>
 
 ; --------------- Object Declaration ---------------
 
@@ -529,6 +538,10 @@ main proc
 	invoke drd_imageLoadFile, ofst d_Brick3hp, ofst Brick3hp
 	invoke drd_imageLoadFile, ofst d_Brick2hp, ofst Brick2hp
 	invoke drd_imageLoadFile, ofst d_Brick1hp, ofst Brick1hp
+	invoke drd_imageLoadFile, ofst d_background, ofst background
+	invoke drd_imageLoadFile, ofst d_gameoverScreen, ofst gameoverScreen
+	invoke drd_imageLoadFile, ofst d_mainMenu, ofst mainMenu
+	invoke drd_imageLoadFile, ofst d_winScreen, ofst winScreen
 	
 	jmp gameSetup ; TODO Remove when game finished
 
@@ -601,6 +614,7 @@ main proc
 		lea ebx, EnemyBullet0
 		mov DWORD ptr [esi + go_sprite], ebx
 		mov DWORD ptr [esi + go_coll], TRUE
+		mov DWORD ptr [esi + go_exists], FALSE
 		mov DWORD ptr [esi + go_htbxX], 13
 		mov DWORD ptr [esi + go_htbxY], 25
 		mov DWORD ptr [esi + go_yFrq], 12
@@ -686,18 +700,23 @@ main proc
 		inc FRAME_COUNT ; Another frame bites the dust
 	cmp GAME_STAGE, Stage_PLAYING
 	je gameLoop
-	
+	; TODO be able to win lol
 	; TODO this V
 	; ~~~ Game over setup ~~~
 
 	invoke drd_pixelsClear, 0
 	; Draw game over screen
+	invoke drd_imageDraw, ofst gameoverScreen, 0, 0
 	invoke drd_flip
 
 	; ~~~ Game over loop ~~~
 	gameOver:
 		invoke drd_processMessages
-	jmp gameOver
+	cmp GAME_STAGE, Stage_GAMEOVER
+	je gameOver
+	cmp GAME_STAGE, Stage_PLAYING
+	je gameSetup
+	; TODO go to menu
 	
 
 	exitGame:
