@@ -215,7 +215,7 @@ playerLost proc, object:DWORD
 playerLost endp
 
 ; Run this function to control the enemies (TODO more cleanup)
-basicEnemyAi proc, object:DWORD ; TODO make sure player losesy
+basicEnemyAi proc, object:DWORD
 	pushad
 	
 	mov ebx, object ; can't use object in indexing so insert it into ebx
