@@ -16,6 +16,7 @@ Stage_MENU equ 0 ; The playe is in the menu, show and handle the menu
 Stage_PLAYING equ 1 ; The player is playing, handle the game
 Stage_GAMEOVER equ 2 ; The player has lost, show game over screen
 Stage_WIN equ 3 ; The player has won, show win screen
+Stage_EXIT equ 4 ; The player is quiting the game
 
 ; Boolean shortcut
 FALSE equ 0
@@ -162,7 +163,7 @@ LEADER_SPOKE BYTE FALSE ; Did the leader say his word?
 JUMP_DOWN BYTE FALSE ; Should we go lower?
 SPEED_STAGE BYTE 0 ; How fast we go? (TODO or not depending if needed more complexity)
 BULLET_AMOUNT BYTE 0 ; How many bullets alive now?
-GAME_STAGE DWORD Stage_PLAYING ; options for this flag are shown in the game stages enum defined at equ declarations ( TODO when done with game change to Stage_MENU)
+GAME_STAGE DWORD Stage_MENU ; options for this flag are shown in the game stages enum defined at equ declarations
 FRAME_COUNT DWORD 0 ; How many frames have passed?
 
 ;#endregion
@@ -532,8 +533,9 @@ keyhandle proc, keycode:DWORD
 	
 	; key right = 39
 	; key left = 37
-	; spacebar = 20
+	; spacebar = 20h
 	; R = 52h
+	; E = 45h
 
 	; Make sure I'm using the correct keyset for the menu and game
 	cmp GAME_STAGE, Stage_MENU
@@ -587,7 +589,18 @@ keyhandle proc, keycode:DWORD
 
 	menuKeys:
 	
-	;TODO
+	cmp keycode, 20h
+	jne MENU_NOT_SPACEBAR
+
+	mov GAME_STAGE, Stage_PLAYING
+	ret 4
+
+	MENU_NOT_SPACEBAR:
+	cmp keycode, 45h
+	jne NO_MENU_KEY_MATCH
+
+	mov GAME_STAGE, Stage_EXIT
+	ret 4
 
 	NO_MENU_KEY_MATCH:
 	ret 4
@@ -600,7 +613,7 @@ keyhandle proc, keycode:DWORD
 
 	cmp keycode, 52h
 	je RETRY_GAME
-	cmp keycode, 20
+	cmp keycode, 20h
 	je TO_MENU
 	ret 4
 
@@ -610,7 +623,7 @@ keyhandle proc, keycode:DWORD
 	ret 4
 
 	TO_MENU:
-	; The spacebar is pressed (go to menu) TODO
+	mov GAME_STAGE, Stage_MENU
 
 	;#endregion
 
@@ -807,17 +820,22 @@ main proc
 	
 	;#endregion
 
-	jmp gameSetup ; TODO Remove when game finished
-
 	;#region menu
 
 	menuSetup:
+	; Clear the screen
+	invoke drd_pixelsClear, 0
+	; Draw the main menu screen
+	invoke drd_imageDraw, ofst mainMenu, 0, 0
+	invoke drd_flip
 
 	menuLoop:
-		invoke drd_pixelsClear, 0
-
 		invoke drd_processMessages
-	jmp menuLoop
+	cmp GAME_STAGE, Stage_MENU
+	je menuLoop
+	cmp GAME_STAGE, Stage_EXIT
+	je exitGame
+	; I don't check for Stage_PLAYING because it's the third option and doesn't require a jump
 	
 	;#endregion
 
@@ -826,8 +844,7 @@ main proc
 	gameSetup:
 	invoke initGame
 	gameLoop:
-		invoke drd_pixelsClear, 0
-		invoke drd_imageDraw, ofst background, 0, 0
+		invoke drd_imageDraw, ofst background, 0, 0 ; Draw the background over all existing items, thus making them invisible
 
 		;#region handle objects loop (Handle movment + ai + drawing of all objects)
 		xor ecx, ecx
@@ -862,12 +879,17 @@ main proc
 		inc FRAME_COUNT ; Another frame bites the dust
 	cmp GAME_STAGE, Stage_PLAYING
 	je gameLoop
+	cmp GAME_STAGE, Stage_GAMEOVER
+	je gameOverSetup
+	; Third option is Stage_WIN which doesn't reqire a jump
 
 	;#endregion
 
 	; TODO be able to win lol
 
 	;#region gameover
+
+	gameOverSetup:
 
 	; Clear the screen
 	invoke drd_pixelsClear, 0
@@ -882,7 +904,8 @@ main proc
 	je gameOver
 	cmp GAME_STAGE, Stage_PLAYING
 	je gameSetup
-	; TODO go to menu
+	cmp GAME_STAGE, Stage_MENU
+	je menuSetup
 	
 	;#endregion
 
