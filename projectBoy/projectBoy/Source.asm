@@ -7,24 +7,27 @@ includelib drd.lib
 
 .data
 
-; TODO make a shortned game init that runs every time I initilize a game and a full one that runs in the beggining of the game
-
 ; ----------------- equ declaration ----------------
 
-Stage_MENU equ 0 ; Stage enum
-Stage_PLAYING equ 1
-Stage_GAMEOVER equ 2
-Stage_WIN equ 3
+;#region
 
-FALSE equ 0 ; Boolean variables
+; game stages enum
+Stage_MENU equ 0 ; The playe is in the menu, show and handle the menu
+Stage_PLAYING equ 1 ; The player is playing, handle the game
+Stage_GAMEOVER equ 2 ; The player has lost, show game over screen
+Stage_WIN equ 3 ; The player has won, show win screen
+
+; Boolean shortcut
+FALSE equ 0
 TRUE equ 1
 
 ofst equ offset ; I'm lazy
 
-playerSpeed equ 8 ; Player stuff
+playerSpeed equ 8 ; The speed of the player
 
-gameObjectSize equ 56
-go_y equ 0 ; Object charachteristics offsets
+; Different gameObject declarations
+gameObjectSize equ 56 ; the size of the struct
+go_y equ 0 ; Offsets of different elements it the struct
 go_x equ 4
 go_sprite equ 8
 go_htbxX equ 12
@@ -41,14 +44,21 @@ go_collFunc equ 52
 
 imageObjectSize equ 20 ; The size of the Img<> struct
 
-enemy_width equ 20 ; Enemy sizes (hitbox)
+; Enemy sizes (hitbox)
+enemy_width equ 20
 enemy_height equ 30
 
-baseBrickX equ 168 ; For brick intialazation
+; starting point for brick initilization (more explanation in the brick section)
+baseBrickX equ 168
 baseBrickY equ 450
+
+;#endregion
 
 ; ---------------- Object defenition ----------------
 
+;#region
+
+; Every thing that's visible on screen except UI elements is a gameobject
 GameObject STRUCT
 	y DWORD ? ; y position
 	x DWORD ? ; x position
@@ -66,7 +76,11 @@ GameObject STRUCT
 	collisionFunc DWORD ofst defaultCollisionFunc ; What happenes when someone touches you ;)
 GameObject ENDS
 
+;#endregion
+
 ; ----------- Image location declaration -----------
+
+;#region
 
 d_Player_Still BYTE "Sprites/Player/Player_Regular.bmp", 0
 d_Player_Bullet BYTE "Sprites/Player/Player_Bullet.bmp", 0
@@ -81,16 +95,20 @@ d_gameoverScreen BYTE "Sprites/Screens/gameOverScreen.bmp", 0
 d_winScreen BYTE "Sprites/Screens/winScreen.bmp", 0
 d_mainMenu BYTE "Sprites/Screens/menuScreen.bmp", 0
 
+;#endregion
+
 ; ------------ Image memory decleration -------------
+
+;#region
 
 Player_Still Img<>
 Player_Bullet Img<>
 Enemy0 Img<>
 EnemyBullet0 Img<>
-; The next 4 lines are kinda equivelent to 'Brick4hp Img 4 dup (<?>)'
+; The next 4 lines of code are kinda equivelent to 'Brick4hp Img 4 dup (<?>)'
 ; Img<> size is 20 bytes
 Brick4hp Img<>
-Brick3hp Img<> ; TODO this texture is bad, put some holes in it
+Brick3hp Img<>
 Brick2hp Img<>
 Brick1hp Img<>
 background Img<>
@@ -98,14 +116,22 @@ gameoverScreen Img<>
 winScreen Img<>
 mainMenu Img<>
 
+;#endregion
+
 ; --------------- Object Declaration ---------------
 
-allGameObjects GameObject 110 dup (<?>)
-playerObject GameObject<>
-playerBullet GameObject<>
+;#region
+
+allGameObjects GameObject 110 dup (<?>) ; in that order: 55 enemies, 15 enemy bullets, 40 bricks
+playerObject GameObject<> ; The object representing the player himself
+playerBullet GameObject<> ; The bullet that the player shoots
+
+;#endregion
 
 ; ----------- Brick location declaration -----------
-;
+
+;#region
+
 ; each @ is 10x10 pixels, - are defined by surrounding @ or markings
 ; coordinates are adjusted from base point (marked in drawing)
 ;
@@ -115,10 +141,7 @@ playerBullet GameObject<>
 ;----------@--@----------@--@-----
 ;-----base-^----------------------
 
-; Base brick x & y declaration
-
-;baseBrickX equ 168 (actual declaration - line ~40)
-;baseBrickY equ 450
+; Base brick x & y declaration at equ declaration
 
 ; Y Offest array
 
@@ -128,21 +151,26 @@ yOffsetFromBaseBrick DWORD 0, 0, -10, -10, -10, -10, -20, -20, -20, -20
 
 xOffsetFromBaseBrick DWORD 0, 30, 0, 10, 20, 30, 0, 10, 20, 30
 
+;#endregion
 
 ; ---------------------- flags ---------------------
 
+;#region
 
 MOVE_LEFT BYTE FALSE ; Are the invaders moving left? 
 LEADER_SPOKE BYTE FALSE ; Did the leader say his word?
 JUMP_DOWN BYTE FALSE ; Should we go lower?
 SPEED_STAGE BYTE 0 ; How fast we go? (TODO or not depending if needed more complexity)
 BULLET_AMOUNT BYTE 0 ; How many bullets alive now?
-GAME_STAGE DWORD Stage_PLAYING ; Stage_MENU & Stage_PLAYING & Stage_GAMEOVER ( TODO when done with game change to Stage_MENU)
+GAME_STAGE DWORD Stage_PLAYING ; options for this flag are shown in the game stages enum defined at equ declarations ( TODO when done with game change to Stage_MENU)
 FRAME_COUNT DWORD 0 ; How many frames have passed?
+
+;#endregion
 
 .code
 
-generateRandom proc; Generate a DWORD random number and insert that into eax
+; This function generates a random 32 bit number and passes with eax
+generateRandom proc
 	rdseed ax
 	shl eax, 4
 	rdseed ax
@@ -626,6 +654,7 @@ initGame proc
 	; ~~~ Player bullet setup ~~~
 	lea eax, Player_Bullet
 	mov playerBullet.sprite, eax ; The default bullet sprite
+	mov playerBullet.exists, FALSE
 
 	; ~~~ Enemy setup ~~~
 	xor ecx, ecx
@@ -710,7 +739,8 @@ initGame endp
 
 main proc
 	
-	; general setup
+	;#region general setup
+
 	invoke drd_init, 1000, 600, 0
 	invoke drd_setKeyHandler, ofst keyhandle ; TODO masm key input
 	invoke drd_imageLoadFile, ofst d_Player_Still, ofst Player_Still
@@ -727,7 +757,11 @@ main proc
 	invoke drd_imageLoadFile, ofst d_winScreen, ofst winScreen
 	invoke initGameStartup
 	
+	;#endregion
+
 	jmp gameSetup ; TODO Remove when game finished
+
+	;#region menu
 
 	menuSetup:
 
@@ -737,11 +771,15 @@ main proc
 		invoke drd_processMessages
 	jmp menuLoop
 	
+	;#endregion
+
+	;#region game
+
 	gameSetup:
 	invoke initGame
-
 	gameLoop:
 		invoke drd_pixelsClear, 0
+		invoke drd_imageDraw, ofst background, 0, 0
 
 		;#region handle objects loop (Handle movment + ai + drawing of all objects)
 		xor ecx, ecx
@@ -776,9 +814,13 @@ main proc
 		inc FRAME_COUNT ; Another frame bites the dust
 	cmp GAME_STAGE, Stage_PLAYING
 	je gameLoop
+
+	;#endregion
+
 	; TODO be able to win lol
 	; TODO this V
-	; ~~~ Game over setup ~~~
+
+	;#region gameover
 
 	invoke drd_pixelsClear, 0
 	; Draw game over screen
@@ -794,6 +836,7 @@ main proc
 	je gameSetup
 	; TODO go to menu
 	
+	;#endregion
 
 	exitGame:
 
