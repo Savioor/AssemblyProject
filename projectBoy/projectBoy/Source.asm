@@ -177,42 +177,44 @@ generateRandom proc
 	ret
 generateRandom endp
 
+; This function returns (firstElement % secondElement) into eax
 modulu proc, firstElement:DWORD, secondElement:DWORD
 	push edx
 
-	xor edx, edx
-	mov eax, firstElement
-	div secondElement
-	mov eax, edx
+	xor edx, edx ; Clear edx for division
+	mov eax, firstElement ; eax = firstElement
+	div secondElement ; firstElement / secondElemeny
+	mov eax, edx ; eax = firstElement % secondElemeny (because edx stores the remainder of the division)
 
 	pop edx
 	ret 8
 modulu endp
 
+; Return the offset of a gameObject into esi using an index
 getGameObjectIndex proc, index:DWORD
 	push eax
 	push edx
-	mov esi, index ; Get the the index of the current object
-	mov eax, gameObjectSize
-	mul esi
-	mov esi, eax
-	add esi, ofst allGameObjects
+
+	mov esi, index ; esi = index
+	mov eax, gameObjectSize ; eax = gameObjectSize
+	mul esi ; eax = index * gameObjectSize
+	mov esi, eax ; esi = index * gameObjectSize
+	add esi, ofst allGameObjects ; esi = [start of object array] + index * gameObjectSize
+
 	pop edx
 	pop eax
 	ret 4
 getGameObjectIndex endp
 
+; Change the game stage to Stage_GAMEOVER - the player lost
 playerLost proc, object:DWORD
 	mov GAME_STAGE, Stage_GAMEOVER	
 	ret 4
 playerLost endp
 
+; Run this function to control the enemies (TODO more cleanup)
 basicEnemyAi proc, object:DWORD ; TODO make sure player losesy
-	push ebx ; I use these registes
-	push ecx
-	push esi	
-	push edi
-	push eax
+	pushad
 	
 	mov ebx, object ; can't use object in indexing so insert it into ebx
 
@@ -336,70 +338,80 @@ basicEnemyAi proc, object:DWORD ; TODO make sure player losesy
 	mov [esi + go_y], eax ; Make bullet same y as shooter
 
 	EXIT_BE_AI:
-	pop eax
-	pop edi
-	pop esi
-	pop ecx
-	pop ebx
+	popad
 	ret 4
 basicEnemyAi endp
 
+; The default collision function for game objects
 defaultCollisionFunc proc, object:DWORD ; TODO add points when you ded
 	push ebx
+
 	mov ebx, object
-	mov DWORD ptr [ebx + go_exists], FALSE
+	mov DWORD ptr [ebx + go_exists], FALSE ; set the object exists variable to false
+
 	pop ebx
 	ret 4
 defaultCollisionFunc endp
 
+; The collision function that runs when something hits a brick
 brickCollisionFunc proc, object:DWORD
 	push ebx
 
 	mov ebx, object
-	cmp DWORD ptr [ebx + go_sprite], ofst Brick1hp
-	je DIE
-	add DWORD ptr [ebx + go_sprite], imageObjectSize
-	jmp EXIT_FUNC
+	cmp DWORD ptr [ebx + go_sprite], ofst Brick1hp ; Do I have 1 hp currently?
+	je DIE ; If so jump do DIE
+	add DWORD ptr [ebx + go_sprite], imageObjectSize ; Increase my sprite value by Img<> struct size so that we will now point to the next image
+	jmp EXIT_FUNC ; Exit
 	DIE:
-	mov DWORD ptr [ebx + go_exists], FALSE
+	mov DWORD ptr [ebx + go_exists], FALSE ; Set the exists variable of this brick to false
 
 	EXIT_FUNC:
 	pop ebx
 	ret 4
 brickCollisionFunc endp
 
+; The collision function that runs when something hits a enemy bullet
 enemyBulletCollision proc, object:DWORD
 	push eax
 	push ebx
 
-	mov ebx, object ; The object which is dying
-	mov al, BULLET_AMOUNT ; eax = BULLET_AMOUNT
-	dec al ; eax = BULLET_AMOUNT - 1
-	mov BULLET_AMOUNT, al
+	mov ebx, object
+	mov al, BULLET_AMOUNT ; al = BULLET_AMOUNT
+	dec al ; al = BULLET_AMOUNT - 1
+	mov BULLET_AMOUNT, al ; BULLET_AMOUNT -= 1
 	
-	mov DWORD ptr [ebx + go_exists], FALSE
+	mov DWORD ptr [ebx + go_exists], FALSE ; Kill this bullet
 	
 	pop ebx
 	pop eax
 	ret 4
 enemyBulletCollision endp
 
+; Check the collision from one object to all the others objects
 checkCollision proc, object:DWORD
 	push ebx
+
 	mov ebx, object
+
+	; Exit the function if the object shouldn't check collision
 	cmp DWORD ptr [ebx + go_coll], FALSE
 	je FINISH_COLLISION
+
+	; Exit if the object is dead
 	cmp DWORD ptr [ebx + go_exists], FALSE
 	je FINISH_COLLISION
 
-	xor ecx, ecx
+	; We are officially inside the function, push some extra registers
+	push ecx
 	push edx
+
+	xor ecx, ecx
 	COLLISION_LOOP_OVER_OBJECTS: ; Loop over all game objects
 		invoke getGameObjectIndex, ecx
-		cmp DWORD ptr [esi + go_exists], FALSE ; Check if the object exists
-		je CONTINUE_COLLISION_LOOP
-		cmp esi, ebx ; The object I'm checking is the same as the refrence object
-		je CONTINUE_COLLISION_LOOP 
+		cmp DWORD ptr [esi + go_exists], FALSE ; Check if the object doesn't exists
+		je CONTINUE_COLLISION_LOOP ; If so skip it
+		cmp esi, ebx ; Check if the refrece object is the same object as the one being checked
+		je CONTINUE_COLLISION_LOOP ; If so skip it
 
 		mov eax, [ebx + go_x] ; xL of checker
 		add eax, [ebx + go_htbxX] ; xH of checker
@@ -423,44 +435,52 @@ checkCollision proc, object:DWORD
 
 		COLLISION_DETECTED:
 
+		; Call the collision functions of the checker and checked
 		push esi
 		call DWORD ptr [esi + go_collFunc]
 		push ebx
 		call DWORD ptr [ebx + go_collFunc]
-		jmp FINISH_COLLISION
+		jmp FINISH_COLLISION ; Exit
 		
 		CONTINUE_COLLISION_LOOP:
 		inc ecx
 	cmp ecx, 112
 	jne COLLISION_LOOP_OVER_OBJECTS
+
 	pop edx
+	pop ecx
 
 	FINISH_COLLISION:
 	pop ebx
 	ret 4
 checkCollision endp
 
+; Handle a game object in that order: AI -> Movement -> Draw
 handleGameObject proc, object:DWORD
 	push ebx
+	push eax
 
 	mov ebx, object
 	cmp DWORD ptr [ebx + go_exists], TRUE ; Check if object exists
-	jne FINISH_HANDLING
+	jne FINISH_HANDLING ; If not then don't handle it
 
-	cmp DWORD ptr [ebx + go_ai], 0 ; Run the AI of the object
+	; Run the AI of the object
+	cmp DWORD ptr [ebx + go_ai], 0
 	je NO_AI
 	push ebx
 	call DWORD ptr [ebx + go_ai]
 	NO_AI:
 	
-	cmp DWORD ptr [ebx + go_xV], 0 ; move the object (x)
+	; move the object (x)
+	cmp DWORD ptr [ebx + go_xV], 0 ; If velocity is 0 don't move
 	je HANDLE_Y_MOVEMENT
-	invoke modulu, FRAME_COUNT, [ebx + go_xFrq]
+	invoke modulu, FRAME_COUNT, [ebx + go_xFrq] ; Check if this is a frame you should mive at
 	.if eax == 0
-		mov eax, [ebx + go_xV]
+		mov eax, [ebx + go_xV] ; If so move
 	.else
-		jmp HANDLE_Y_MOVEMENT
+		jmp HANDLE_Y_MOVEMENT ; Otherwise go the the Y movement
 	.endif
+	; Check if we didn't move too far with x
 	add DWORD ptr [ebx + go_x], eax
 	cmp DWORD ptr [ebx + go_x], 0
 	jl CANT_GO_FURTHER_X
@@ -474,7 +494,8 @@ handleGameObject proc, object:DWORD
 	mov eax, [ebx + go_xV]
 	sub DWORD ptr [ebx + go_x], eax
 
-	HANDLE_Y_MOVEMENT: ; Move object (y)
+	 ; Move object (y) - Works the same way as x moving does
+	HANDLE_Y_MOVEMENT:
 	cmp DWORD ptr [ebx + go_yV], 0
 	je DRAW_OBJECT
 	invoke modulu, FRAME_COUNT, [ebx + go_yFrq]
@@ -501,10 +522,12 @@ handleGameObject proc, object:DWORD
 	invoke drd_imageDraw, [ebx + go_sprite], [ebx + go_x], [ebx + go_y] ; Draw the object
 
 	FINISH_HANDLING:
+	pop eax
 	pop ebx
 	ret 4
 handleGameObject endp
 
+; Handle all key presses possible in all game stages
 keyhandle proc, keycode:DWORD
 	
 	; key right = 39
@@ -512,7 +535,8 @@ keyhandle proc, keycode:DWORD
 	; spacebar = 20
 	; R = 52h
 
-	cmp GAME_STAGE, Stage_MENU ; Make sure I'm using the correct keyset for the menu and game
+	; Make sure I'm using the correct keyset for the menu and game
+	cmp GAME_STAGE, Stage_MENU
 	je menuKeys
 	cmp GAME_STAGE, Stage_GAMEOVER
 	je redirectionKeys
@@ -524,7 +548,7 @@ keyhandle proc, keycode:DWORD
 	cmp keycode, 39
 	jne NOT_KEY_RIGHT
 	
-	; The right arrow key is pressed:
+	; The right arrow key is pressed (move right):
 	mov playerObject.xVelocity, playerSpeed
 
 	jmp NO_KEY_MATCH
@@ -532,7 +556,7 @@ keyhandle proc, keycode:DWORD
 	cmp keycode, 37
 	jne NOT_KEY_LEFT
 
-	; The left arrow key is pressed:
+	; The left arrow key is pressed (move left):
 	mov playerObject.xVelocity, -playerSpeed
 
 	jmp NO_KEY_MATCH
@@ -540,19 +564,19 @@ keyhandle proc, keycode:DWORD
 	cmp keycode, 32
 	jne NO_KEY_MATCH
 
-	; Spacebar is pressed:
+	; Spacebar is pressed (shoot bullet):
 	cmp playerBullet.exists, TRUE
 	je NO_KEY_MATCH
 
-	; Shoot bullet TODO show the bullet slightly to the left adjusted by it's own hitbox
-	mov playerBullet.exists, TRUE
-	mov eax, playerObject.hitBoxXOffset
-	shr eax, 1
-	add eax, playerObject.x
-	mov playerBullet.x, eax
-	mov eax, playerObject.y
-	sub eax, 30
-	mov playerBullet.y, eax
+	; TODO show the bullet slightly to the left adjusted by it's own hitbox
+	mov playerBullet.exists, TRUE ; Make the bullet exist
+	mov eax, playerObject.hitBoxXOffset ; eax = player width
+	shr eax, 1 ; eax = player width / 2
+	add eax, playerObject.x ; eax = player center x pos
+	mov playerBullet.x, eax ; bullet.x = player center x pos
+	mov eax, playerObject.y ; eax = player y
+	sub eax, 30 ; eax = slightly above player y
+	mov playerBullet.y, eax ; bullet.y = slightly above player y
 
 	NO_KEY_MATCH:
 	ret 4
@@ -563,6 +587,7 @@ keyhandle proc, keycode:DWORD
 
 	menuKeys:
 	
+	;TODO
 
 	NO_MENU_KEY_MATCH:
 	ret 4
@@ -575,10 +600,17 @@ keyhandle proc, keycode:DWORD
 
 	cmp keycode, 52h
 	je RETRY_GAME
-	ret 4 ; TODO add return to menu
-	
+	cmp keycode, 20
+	je TO_MENU
+	ret 4
+
 	RETRY_GAME:
+	; The 'R' key is pressed (restart the game)
 	mov GAME_STAGE, Stage_PLAYING
+	ret 4
+
+	TO_MENU:
+	; The spacebar is pressed (go to menu) TODO
 
 	;#endregion
 
