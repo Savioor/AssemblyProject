@@ -619,11 +619,17 @@ keyhandle endp
 
 ; Run at the startup of the program, overall this must be run only once
 initGameStartup proc
+	push ecx
+	push esi
+
 	; ~~~ Player setup ~~~
-	mov playerObject.collisionFunc, ofst playerLost
+
+	mov playerObject.collisionFunc, ofst playerLost ; Player collision function
 	mov playerObject.hitBoxXOffset, 132 ; Player width
 	mov playerObject.hitBoxYOffset, 40 ; Player height
+
 	; ~~~ Player bullet setup ~~~
+
 	mov playerBullet.yVelocity, -1 ; Bullet moves at a speed of 1 upwards
 	mov playerBullet.yFreq, 4 ; The bullet moves every 4 frames
 	mov playerBullet.hitBoxXOffset, 13 ; The bullet width is 13
@@ -631,6 +637,7 @@ initGameStartup proc
 	mov playerBullet.checkCollision, TRUE ; The bullet is a collision checker
 
 	; ~~~ Enemy setup ~~~
+
 	xor ecx, ecx
 	ENEMY_SETUP_LOOP:
 		invoke getGameObjectIndex, ecx ; Get the index
@@ -644,37 +651,42 @@ initGameStartup proc
 		inc ecx
 	cmp ecx, 55
 	jne ENEMY_SETUP_LOOP
+
 	; ~~~ Initilize enemy bullets ~~~
+
 	ENEMY_BULLET_SETUP_LOOP:
 		invoke getGameObjectIndex, ecx
 
-		mov DWORD ptr [esi + go_coll], TRUE
-		mov DWORD ptr [esi + go_htbxX], 13
-		mov DWORD ptr [esi + go_htbxY], 25
-		mov DWORD ptr [esi + go_yFrq], 12
-		mov DWORD ptr [esi + go_yV], 1
-		mov DWORD ptr [esi + go_collFunc], ofst enemyBulletCollision
+		mov DWORD ptr [esi + go_coll], TRUE ; Enemy bullets check collision
+		mov DWORD ptr [esi + go_htbxX], 13 ; width
+		mov DWORD ptr [esi + go_htbxY], 25 ; height
+		mov DWORD ptr [esi + go_yFrq], 12 ; Move once every 12 frames
+		mov DWORD ptr [esi + go_yV], 1 ; Move 1 in the y axis each time
+		mov DWORD ptr [esi + go_collFunc], ofst enemyBulletCollision ; Set collision function
 
 		inc ecx
 	cmp ecx, 70
 	jne ENEMY_BULLET_SETUP_LOOP
+
 	; ~~~ Initilize bricks ~~~
-	xor edi, edi
 
 	BRICK_INIT_LOOP:
 		invoke getGameObjectIndex, ecx
 
-		mov DWORD ptr [esi + go_htbxX], 10
-		mov DWORD ptr [esi + go_htbxY], 10
-		mov DWORD ptr [esi + go_collFunc], ofst brickCollisionFunc
+		mov DWORD ptr [esi + go_htbxX], 10 ; Width
+		mov DWORD ptr [esi + go_htbxY], 10 ; Height
+		mov DWORD ptr [esi + go_collFunc], ofst brickCollisionFunc ; Collision function
 		
 		inc ecx
 	cmp ecx, 110
 	jne BRICK_INIT_LOOP
+
+	pop esi
+	pop ecx
 	ret
 initGameStartup endp
 
-; Run this everytime I want to restart/start a game session
+; Run this everytime I want to restart/start a game session (TODO more cleanup)
 initGame proc
 	mov FRAME_COUNT, 0 ; Reset the frame count because a new game has started
 	; ~~~ Player setup ~~~
@@ -773,8 +785,11 @@ main proc
 	
 	;#region general setup
 
+	; Create the window
 	invoke drd_init, 1000, 600, 0
+	; Set the key handler
 	invoke drd_setKeyHandler, ofst keyhandle ; TODO masm key input
+	; Load the images into RAM
 	invoke drd_imageLoadFile, ofst d_Player_Still, ofst Player_Still
 	invoke drd_imageLoadFile, ofst d_Player_Bullet, ofst Player_Bullet
 	invoke drd_imageLoadFile, ofst d_Enemy0, ofst Enemy0
@@ -787,6 +802,7 @@ main proc
 	invoke drd_imageLoadFile, ofst d_gameoverScreen, ofst gameoverScreen
 	invoke drd_imageLoadFile, ofst d_mainMenu, ofst mainMenu
 	invoke drd_imageLoadFile, ofst d_winScreen, ofst winScreen
+	; Startup all the game variables
 	invoke initGameStartup
 	
 	;#endregion
@@ -850,10 +866,10 @@ main proc
 	;#endregion
 
 	; TODO be able to win lol
-	; TODO this V
 
 	;#region gameover
 
+	; Clear the screen
 	invoke drd_pixelsClear, 0
 	; Draw game over screen
 	invoke drd_imageDraw, ofst gameoverScreen, 0, 0
