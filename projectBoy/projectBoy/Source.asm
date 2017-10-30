@@ -743,7 +743,7 @@ main proc
 	gameLoop:
 		invoke drd_pixelsClear, 0
 
-		; Handle movment + ai + drawing of all objects
+		;#region handle objects loop (Handle movment + ai + drawing of all objects)
 		xor ecx, ecx
 		MAD_LOOP:
 			push ecx
@@ -753,8 +753,9 @@ main proc
 			inc ecx
 		cmp ecx, 112
 		jne MAD_LOOP
+		;#endregion
 
-		; Collision detection
+		;#region Collision detection
 		xor ecx, ecx
 		COLL_LOOP:
 			push ecx
@@ -764,6 +765,7 @@ main proc
 			inc ecx
 		cmp ecx, 112
 		jne COLL_LOOP
+		;#endregion
 
 		; End of frame stuff
 		invoke drd_flip ; Draw all the things
