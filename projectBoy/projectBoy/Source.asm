@@ -3,6 +3,8 @@ include /masm32/include/masm32rt.inc
 include drd.inc
 includelib drd.lib
 
+; TODO make the leader searching more efficent
+
 .686
 
 .data
@@ -53,6 +55,9 @@ enemy_height equ 30
 baseBrickX equ 168
 baseBrickY equ 450
 
+; For the image declaration
+numbersOfst equ 16
+
 ;#endregion
 
 ; ---------------- Object defenition ----------------
@@ -95,6 +100,8 @@ d_background BYTE "Sprites/background.bmp", 0
 d_gameoverScreen BYTE "Sprites/Screens/gameOverScreen.bmp", 0
 d_winScreen BYTE "Sprites/Screens/winScreen.bmp", 0
 d_mainMenu BYTE "Sprites/Screens/menuScreen.bmp", 0
+d_numberBase BYTE "Sprites/Numbers/0.bmp", 0
+; numbersOfst equ 16
 
 ;#endregion
 
@@ -116,6 +123,7 @@ background Img<>
 gameoverScreen Img<>
 winScreen Img<>
 mainMenu Img<>
+numbersArray Img 10 dup (<?>)
 
 ;#endregion
 
@@ -812,6 +820,67 @@ initGame proc
 	ret
 initGame endp
 
+; Draw the currunt score (SCORE flag) using the lettres, maximun score is 255 TODO test
+drawScore proc, xPos:DWORD, yPos:DWORD
+	pushad
+
+	;#region hundrends
+
+	xor edx, edx ; edx = 0
+	xor eax, eax
+	mov al, SCORE ; eax = SCORE
+	mov ebx, 100
+	div ebx ; eax = Math.floor(SCORE / 100)
+
+	mov ebx, imageObjectSize ; ebx = 20
+	mul ebx ; eax = 100's * 20
+	mov ebx, eax ; ebx = 100's * 20
+	add ebx, ofst numbersArray ; add origin to make offset correct
+
+	invoke drd_imageDraw, ebx, xPos, yPos ; Draw
+
+	;#endregion
+
+	add xPos, 35
+
+	;#region tens
+
+	xor edx, edx ; edx = 0
+	xor eax, eax
+	mov al, SCORE ; eax = SCORE
+	mov ebx, 10
+	div ebx ; eax = Math.floor(SCORE / 10)
+	push edx ; this contains SCORE % 10 which is needed for later
+	invoke modulu, eax, 10 ; eax = Math.floor(SCORE / 10) % 10
+
+	mov ebx, imageObjectSize ; ebx = 20
+	mul ebx ; eax = 10's * 20
+	mov ebx, eax ; ebx = 10's * 20
+	add ebx, ofst numbersArray ; add origin to make offset correct
+
+	invoke drd_imageDraw, ebx, xPos, yPos ; Draw
+
+	;#endregion
+
+	add xPos, 35
+	
+	;#region ones
+
+	pop eax ; eax = SCORE % 10 which was pushed form edx earlier
+
+	mov ebx, imageObjectSize ; ebx = 20
+	mul ebx ; eax = 1's * 20
+	mov ebx, eax ; ebx = 1's * 20
+	add ebx, ofst numbersArray ; add origin to make offset correct
+
+	invoke drd_imageDraw, ebx, xPos, yPos ; Draw
+
+	;#endregion
+
+	popad
+	ret 8
+drawScore endp
+
 main proc
 	
 	;#region general setup
@@ -833,6 +902,19 @@ main proc
 	invoke drd_imageLoadFile, ofst d_gameoverScreen, ofst gameoverScreen
 	invoke drd_imageLoadFile, ofst d_mainMenu, ofst mainMenu
 	invoke drd_imageLoadFile, ofst d_winScreen, ofst winScreen
+
+	; Load the numbers
+	mov ecx, 10 ; Loop 10 times (10 numbers)
+	lea ebx, numbersArray ; The Img<> object location
+	lea esi, d_numberBase ; The directory of the image
+	LOAD_NUMBERS:
+		push ecx
+		invoke drd_imageLoadFile, esi, ebx ; Load the image
+		pop ecx
+		add ebx, imageObjectSize ; Shift one image in the array
+		inc BYTE ptr [esi + numbersOfst] ; Change the ASCII value of byte 16 in the adress by one so '0' -> '1' -> '2' -> '3' -> ... -> '9'
+	loop LOAD_NUMBERS
+
 	; Startup all the game variables
 	invoke initGameStartup
 	
@@ -862,6 +944,8 @@ main proc
 	invoke initGame
 	gameLoop:
 		invoke drd_imageDraw, ofst background, 0, 0 ; Draw the background over all existing items, thus making them invisible
+
+		invoke drawScore, 0, 0 ; Draw the score for the player
 
 		;#region handle objects loop (Handle movment + ai + drawing of all objects)
 		xor ecx, ecx
@@ -912,6 +996,7 @@ main proc
 	mov GAME_STAGE, Stage_WIN
 	; Draw the screen
 	invoke drd_imageDraw, ofst winScreen, 0, 0
+	invoke drawScore, 700, 400
 	invoke drd_flip
 
 	winLoop:
@@ -931,6 +1016,7 @@ main proc
 
 	; Draw game over screen
 	invoke drd_imageDraw, ofst gameoverScreen, 0, 0
+	invoke drawScore, 700, 400
 	invoke drd_flip
 
 	; ~~~ Game over loop ~~~
