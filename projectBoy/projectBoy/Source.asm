@@ -3,7 +3,7 @@ include /masm32/include/masm32rt.inc
 include drd.inc
 includelib drd.lib
 
-; TODO make the leader searching more efficent
+; TODO make looping over objects more efficent without getObjectIndex
 
 .686
 
@@ -174,6 +174,7 @@ BULLET_AMOUNT BYTE 0 ; How many bullets alive now?
 SCORE BYTE 0 ; How many enemies did the player kill
 GAME_STAGE BYTE Stage_MENU ; options for this flag are shown in the game stages enum defined at equ declarations
 FRAME_COUNT DWORD 0 ; How many frames have passed?
+LEADER DWORD ? ; The location of the leading invader in memory
 
 ;#endregion
 
@@ -216,6 +217,67 @@ getGameObjectIndex proc, index:DWORD
 	ret 4
 getGameObjectIndex endp
 
+; Get the current leading invader and update LEADER flag
+getLeader proc
+	push eax
+	push ecx
+	push esi
+	push edi
+
+	cmp SCORE, 55 ; Make sure we aren't fucking up shit
+	jne SOMEONE_ALIVE
+	ret
+	SOMEONE_ALIVE: ; Continue if we aren't fucking up shit
+
+	; Find the first enemy alive
+	xor ecx, ecx
+	FIND_INITIAL:
+		invoke getGameObjectIndex, ecx ; Get the enemy
+		cmp DWORD ptr [esi + go_exists], TRUE ; Check if enemy is alive
+		je FOUND_INITIAL ; If so continue w/ code
+		inc ecx ; else check next enemy
+	FOUND_INITIAL:
+	inc ecx ; incease ecx because we don't need to compare the first enemy to himself
+	mov edi, esi ; I use esi late so put the current potential leader into edi
+
+	.while ecx < 55 ; Loop over all enemies
+
+		invoke getGameObjectIndex, ecx ; Get the index
+
+		cmp DWORD ptr [esi + go_exists], FALSE ; Is it alive?
+		je CONTINUE_LEADER_SEARCH_LOOP
+
+		cmp DWORD ptr [esi + go_points], 0 ; Is it even an enemy?
+		je CONTINUE_LEADER_SEARCH_LOOP
+			
+		.if MOVE_LEFT == TRUE ; Move left
+			; Am I the leftmostsome?
+			mov eax, DWORD ptr [esi + go_x]
+			.if eax < DWORD ptr [edi + go_x]
+				;I am more left
+				mov edi, esi
+			.endif
+		.else ; Move right
+			; Am I the rightmostsome?
+			mov eax, DWORD ptr [esi + go_x]
+			.if DWORD ptr eax > DWORD ptr [edi + go_x]
+				;I am more right
+				mov edi, esi
+			.endif
+		.endif
+		CONTINUE_LEADER_SEARCH_LOOP:
+		inc ecx
+	.endw
+
+	mov LEADER, edi ; Update the LEADER flag
+
+	pop edi
+	pop esi
+	pop ecx
+	pop eax
+	ret
+getLeader endp
+
 ; Change the game stage to Stage_GAMEOVER - the player lost
 playerLost proc, object:DWORD
 	mov GAME_STAGE, Stage_GAMEOVER	
@@ -232,41 +294,7 @@ basicEnemyAi proc, object:DWORD
 
 	.if LEADER_SPOKE == FALSE ; Leader didn't speak
 
-		mov ecx, 1 ; Setup first default and loop
-		invoke getGameObjectIndex, 0
-		mov edi, esi
-
-		.while ecx < 55 ; Loop over all enemies
-
-			invoke getGameObjectIndex, ecx ; Get the index
-
-			cmp DWORD ptr [esi + go_exists], FALSE ; Is it alive?
-			je CONTINUE_LEADER_SEARCH_LOOP
-
-			cmp DWORD ptr [esi + go_points], 0 ; Is it even an enemy?
-			je CONTINUE_LEADER_SEARCH_LOOP
-			
-			push eax ; I use eax for a bit here
-			.if MOVE_LEFT == TRUE ; Move left
-				; Am I the leftmostsome?
-				mov eax, DWORD ptr [esi + go_x]
-				.if eax < DWORD ptr [edi + go_x]
-					;I am more left
-					mov edi, esi
-				.endif
-			.else ; Move right
-				; Am I the rightmostsome?
-				mov eax, DWORD ptr [esi + go_x]
-				.if DWORD ptr eax > DWORD ptr [edi + go_x]
-					;I am more right
-					mov edi, esi
-				.endif
-			.endif
-			pop eax
-
-			CONTINUE_LEADER_SEARCH_LOOP:
-			inc ecx
-		.endw
+		mov edi, LEADER ; get the leader from memory
 
 		; Let the leader speak (edi)
 		.if MOVE_LEFT == TRUE
@@ -294,6 +322,7 @@ basicEnemyAi proc, object:DWORD
 
 	.if JUMP_DOWN == TRUE ; Move one row down and check for player losing
 		add DWORD ptr [ebx + go_y], enemy_height
+		invoke getLeader ; Get the leader because direction has changed
 		.if DWORD ptr [ebx + go_y] >= 420
 			mov GAME_STAGE, Stage_GAMEOVER ; The invaders are too low
 		.endif
@@ -356,7 +385,7 @@ basicEnemyAi proc, object:DWORD
 basicEnemyAi endp
 
 ; The default collision function for game objects
-defaultCollisionFunc proc, object:DWORD ; TODO add points when you ded
+defaultCollisionFunc proc, object:DWORD
 	push ebx
 
 	mov ebx, object
@@ -374,6 +403,10 @@ enemyCollisionFunc proc, object:DWORD
 	mov DWORD ptr [ebx + go_exists], FALSE ; set the object exists variable to false
 	inc SCORE ; Increase the player score
 
+	cmp ebx, LEADER
+	jne EXIT_FUNC
+	invoke getLeader ; The leader died, get a new one
+	EXIT_FUNC:
 	pop ebx
 	ret 4
 enemyCollisionFunc endp
@@ -769,6 +802,7 @@ initGame proc
 		inc ecx
 	cmp ecx, 55
 	jne ENEMY_SETUP_LOOP
+	invoke getLeader ; Get the initial leader
 	; ~~~ Initilize enemy bullets ~~~
 	ENEMY_BULLET_SETUP_LOOP:
 		invoke getGameObjectIndex, ecx
@@ -820,7 +854,7 @@ initGame proc
 	ret
 initGame endp
 
-; Draw the currunt score (SCORE flag) using the lettres, maximun score is 255 TODO test
+; Draw the currunt score (SCORE flag) using the lettres, maximun score is 255 TODO make this recieve a BYTE score insted of using SCORE
 drawScore proc, xPos:DWORD, yPos:DWORD
 	pushad
 
