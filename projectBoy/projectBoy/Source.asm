@@ -169,8 +169,8 @@ xOffsetFromBaseBrick DWORD 0, 30, 0, 10, 20, 30, 0, 10, 20, 30
 MOVE_LEFT BYTE FALSE ; Are the invaders moving left? 
 LEADER_SPOKE BYTE FALSE ; Did the leader say his word?
 JUMP_DOWN BYTE FALSE ; Should we go lower?
-SPEED_STAGE BYTE 0 ; How fast we go? (TODO or not depending if needed more complexity)
 BULLET_AMOUNT BYTE 0 ; How many bullets alive now?
+INVADER_SPEED BYTE 16 ; How fast should the invaders go?
 SCORE BYTE 0 ; How many enemies did the player kill
 GAME_STAGE BYTE Stage_MENU ; options for this flag are shown in the game stages enum defined at equ declarations
 FRAME_COUNT DWORD 0 ; How many frames have passed?
@@ -313,11 +313,14 @@ basicEnemyAi proc, object:DWORD
 		mov LEADER_SPOKE, TRUE
 	.endif
 	
-	; Move the dudes
-	.if MOVE_LEFT == FALSE
-		mov DWORD ptr [ebx + go_xV], 1
-	.else ; MOVE_LEFT == TRUE
-		mov DWORD ptr [ebx + go_xV], -1
+	xor eax, eax ; Set freqency
+	mov al, INVADER_SPEED
+	mov DWORD ptr [ebx + go_xFrq], eax
+
+	; Set speed
+	mov DWORD ptr [ebx + go_xV], 1
+	.if MOVE_LEFT == TRUE
+		neg DWORD ptr [ebx + go_xV] ; -1
 	.endif
 
 	.if JUMP_DOWN == TRUE ; Move one row down and check for player losing
@@ -331,10 +334,10 @@ basicEnemyAi proc, object:DWORD
 	; ~~~ shoot bullets ~~~
 
 	invoke generateRandom ; Generate a random number to decide if to shoot or not
-	invoke modulu, eax, 5000
+	invoke modulu, eax, 4000
 	cmp eax, 0 ; eax % 5000 == 0
 	jne EXIT_BE_AI
-	invoke modulu, FRAME_COUNT, 600
+	invoke modulu, FRAME_COUNT, 1200
 	cmp eax, 0
 	jbe EXIT_BE_AI
 
@@ -403,10 +406,6 @@ enemyCollisionFunc proc, object:DWORD
 	mov DWORD ptr [ebx + go_exists], FALSE ; set the object exists variable to false
 	inc SCORE ; Increase the player score
 
-	cmp ebx, LEADER
-	jne EXIT_FUNC
-	invoke getLeader ; The leader died, get a new one
-	EXIT_FUNC:
 	pop ebx
 	ret 4
 enemyCollisionFunc endp
@@ -773,6 +772,7 @@ initGame proc
 	mov playerBullet.exists, FALSE
 
 	; ~~~ Enemy setup ~~~
+	mov INVADER_SPEED, 16
 	xor ecx, ecx
 	ENEMY_SETUP_LOOP:
 		invoke getGameObjectIndex, ecx ; Get the index
@@ -1005,16 +1005,38 @@ main proc
 		jne COLL_LOOP
 		;#endregion
 
-		; End of frame stuff
+		;#region End of frame stuff
+
 		cmp SCORE, 55
 		je playerWonSetup
 
+		mov ebx, LEADER
+		cmp DWORD ptr [ebx + go_exists], TRUE
+		je LEADER_ALIVE
+		invoke getLeader
+		LEADER_ALIVE:
+
 		invoke drd_flip ; Draw all the things
+
 		mov playerObject.xVelocity, 0 ; Nullify the player speed
-		mov LEADER_SPOKE, FALSE
-		mov JUMP_DOWN, FALSE
+		mov LEADER_SPOKE, FALSE ; Leader can't forsee the next frame, and therefor is silent
+		mov JUMP_DOWN, FALSE ; Can't jump down twice
+
 		invoke drd_processMessages ; Check keypresses
+
+		invoke modulu, FRAME_COUNT, 10000
+		cmp eax, 0
+		jne NO_INCREASE
+			dec INVADER_SPEED
+			cmp INVADER_SPEED, 0
+			jne NO_INCREASE
+			inc INVADER_SPEED
+		NO_INCREASE:
+
 		inc FRAME_COUNT ; Another frame bites the dust
+		
+		;#endregion
+
 	cmp GAME_STAGE, Stage_PLAYING
 	je gameLoop
 	cmp GAME_STAGE, Stage_GAMEOVER
@@ -1066,7 +1088,8 @@ main proc
 	;#endregion
 
 	exitGame:
-	; TODO exit the game properly
+
+	invoke ExitProcess, 0 
 	ret
 main endp
 
