@@ -135,6 +135,9 @@ allGameObjects GameObject 110 dup (<?>) ; in that order: 55 enemies, 15 enemy bu
 playerObject GameObject<> ; The object representing the player himself
 playerBullet GameObject<> ; The bullet that the player shoots
 
+; I don't really have a good category for this but it's the windows name
+windowName BYTE "Spave Invaders - by Alexey Shapovalov", 0
+
 ;#endregion
 
 ; ----------- Brick location declaration -----------
@@ -923,6 +926,8 @@ main proc
 	invoke drd_init, 1000, 600, 0
 	; Set the key handler
 	invoke drd_setKeyHandler, ofst keyhandle ; TODO masm key input
+	; Set window name
+	invoke drd_setWindowTitle, ofst windowName
 	; Load the images into RAM
 	invoke drd_imageLoadFile, ofst d_Player_Still, ofst Player_Still
 	invoke drd_imageLoadFile, ofst d_Player_Bullet, ofst Player_Bullet
