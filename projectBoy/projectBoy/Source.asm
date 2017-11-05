@@ -337,14 +337,14 @@ basicEnemyAi proc, object:DWORD
 	; ~~~ shoot bullets ~~~
 
 	invoke generateRandom ; Generate a random number to decide if to shoot or not
-	invoke modulu, eax, 4000
-	cmp eax, 0 ; eax % 5000 == 0
+	invoke modulu, eax, 3500
+	cmp eax, 0 ; eax % 3500 == 0
 	jne EXIT_BE_AI
 	invoke modulu, FRAME_COUNT, 1200
 	cmp eax, 0
 	jbe EXIT_BE_AI
 
-	; 1:5000 chance to get here
+	; 1:3500 chance to get here
 
 	mov ecx, 0
 	CHECK_BULLET_SHOOTING:
@@ -589,7 +589,7 @@ handleGameObject endp
 
 ; Handle all key presses possible in all game stages
 keyhandle proc, keycode:DWORD
-	
+
 	; key right = 39
 	; key left = 37
 	; spacebar = 20h
@@ -629,15 +629,23 @@ keyhandle proc, keycode:DWORD
 	cmp playerBullet.exists, TRUE
 	je NO_KEY_MATCH
 
-	; TODO show the bullet slightly to the left adjusted by it's own hitbox
-	mov playerBullet.exists, TRUE ; Make the bullet exist
-	mov eax, playerObject.hitBoxXOffset ; eax = player width
-	shr eax, 1 ; eax = player width / 2
-	add eax, playerObject.x ; eax = player center x pos
-	mov playerBullet.x, eax ; bullet.x = player center x pos
-	mov eax, playerObject.y ; eax = player y
-	sub eax, 30 ; eax = slightly above player y
-	mov playerBullet.y, eax ; bullet.y = slightly above player y
+	push eax
+	push edx
+
+	mov playerBullet.exists, TRUE						; Make the bullet exist
+	mov eax, playerObject.hitBoxXOffset					; eax = player width
+	shr eax, 1											; eax = player width / 2
+	add eax, playerObject.x								; eax = player center x pos
+	mov edx, playerBullet.hitBoxXOffset					; edx = bullet width
+	shr edx, 1											; edx = bullet width / 2
+	sub eax, edx										; eax = player x center pos adjusted for bullet hitbox
+	mov playerBullet.x, eax								; bullet.x = player center x pos
+	mov eax, playerObject.y								; eax = player y
+	sub eax, 30											; eax = slightly above player y
+	mov playerBullet.y, eax								; bullet.y = slightly above player y
+
+	pop eax
+	pop edx
 
 	NO_KEY_MATCH:
 	ret 4
@@ -857,7 +865,7 @@ initGame proc
 	ret
 initGame endp
 
-; Draw the currunt score (SCORE flag) using the lettres, maximun score is 255 TODO make this recieve a BYTE score insted of using SCORE
+; Draw the currunt score (SCORE flag) using the lettres, maximun score is 255
 drawScore proc, xPos:DWORD, yPos:DWORD
 	pushad
 
@@ -925,7 +933,7 @@ main proc
 	; Create the window
 	invoke drd_init, 1000, 600, 0
 	; Set the key handler
-	invoke drd_setKeyHandler, ofst keyhandle ; TODO masm key input
+	invoke drd_setKeyHandler, ofst keyhandle ; opTODO masm key input
 	; Set window name
 	invoke drd_setWindowTitle, ofst windowName
 	; Load the images into RAM
