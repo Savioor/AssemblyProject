@@ -3,7 +3,7 @@ include /masm32/include/masm32rt.inc
 include drd.inc
 includelib drd.lib
 
-; TODO make looping over objects more efficent without getObjectIndex
+; TODOop make looping over objects more efficent without getObjectIndex
 
 .686
 
@@ -977,6 +977,8 @@ main proc
 
 	menuLoop:
 		invoke drd_processMessages
+		cmp eax, 0
+		je exitGame
 	cmp GAME_STAGE, Stage_MENU
 	je menuLoop
 	cmp GAME_STAGE, Stage_EXIT
@@ -1036,6 +1038,8 @@ main proc
 		mov JUMP_DOWN, FALSE ; Can't jump down twice
 
 		invoke drd_processMessages ; Check keypresses
+		cmp eax, 0
+		je exitGame
 
 		invoke modulu, FRAME_COUNT, 10000
 		cmp eax, 0
@@ -1070,6 +1074,8 @@ main proc
 
 	winLoop:
 		invoke drd_processMessages
+		cmp eax, 0
+		je exitGame
 	cmp GAME_STAGE, Stage_WIN
 	je winLoop
 	cmp GAME_STAGE, Stage_PLAYING
@@ -1091,6 +1097,8 @@ main proc
 	; ~~~ Game over loop ~~~
 	gameOver:
 		invoke drd_processMessages
+		cmp eax, 0
+		je exitGame
 	cmp GAME_STAGE, Stage_GAMEOVER
 	je gameOver
 	cmp GAME_STAGE, Stage_PLAYING
