@@ -3,8 +3,6 @@ include /masm32/include/masm32rt.inc
 include drd.inc
 includelib drd.lib
 
-; TODOop make looping over objects more efficent without getObjectIndex
-
 .686
 
 .data
