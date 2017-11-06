@@ -149,7 +149,7 @@ windowName BYTE "Spave Invaders - by Alexey Shapovalov", 0
 ;
 ;---------------------------------
 ;----------@@@@----------@@@@-----
-;|---168--|@@@@|---168--|@@@@-----
+;|---168--|@@@@|---168--|@@@@-----	etc.
 ;----------@--@----------@--@-----
 ;-----base-^----------------------
 
@@ -234,18 +234,18 @@ getLeader proc
 
 	; Find the first enemy alive
 	xor ecx, ecx
+	mov esi, ofst allGameObjects
 	FIND_INITIAL:
-		invoke getGameObjectIndex, ecx ; Get the enemy
 		cmp DWORD ptr [esi + go_exists], TRUE ; Check if enemy is alive
 		je FOUND_INITIAL ; If so continue w/ code
+		add esi, gameObjectSize ; Next object
 		inc ecx ; else check next enemy
 	FOUND_INITIAL:
 	inc ecx ; incease ecx because we don't need to compare the first enemy to himself
 	mov edi, esi ; I use esi late so put the current potential leader into edi
 
+	invoke getGameObjectIndex, ecx ; Get the initial index
 	.while ecx < 55 ; Loop over all enemies
-
-		invoke getGameObjectIndex, ecx ; Get the index
 
 		cmp DWORD ptr [esi + go_exists], FALSE ; Is it alive?
 		je CONTINUE_LEADER_SEARCH_LOOP
@@ -269,6 +269,7 @@ getLeader proc
 			.endif
 		.endif
 		CONTINUE_LEADER_SEARCH_LOOP:
+		add esi, gameObjectSize
 		inc ecx
 	.endw
 
@@ -306,11 +307,13 @@ basicEnemyAi proc, object:DWORD
 			.if DWORD ptr [edi + go_x] < ecx ; Check leader position, change flags if needed
 				mov MOVE_LEFT, FALSE
 				mov JUMP_DOWN, TRUE
+				invoke getLeader ; Get the leader because direction has changed
 			.endif
 		.else
 			.if DWORD ptr [edi + go_x] > 950 ; Check leader position, change flags if needed
 				mov MOVE_LEFT, TRUE
 				mov JUMP_DOWN, TRUE
+				invoke getLeader ; Get the leader because direction has changed
 			.endif
 		.endif
 		mov LEADER_SPOKE, TRUE
@@ -328,7 +331,6 @@ basicEnemyAi proc, object:DWORD
 
 	.if JUMP_DOWN == TRUE ; Move one row down and check for player losing
 		add DWORD ptr [ebx + go_y], enemy_height
-		invoke getLeader ; Get the leader because direction has changed
 		.if DWORD ptr [ebx + go_y] >= 420
 			mov GAME_STAGE, Stage_GAMEOVER ; The invaders are too low
 		.endif
@@ -347,8 +349,8 @@ basicEnemyAi proc, object:DWORD
 	; 1:3500 chance to get here
 
 	mov ecx, 0
+	mov esi, ofst allGameObjects
 	CHECK_BULLET_SHOOTING:
-		invoke getGameObjectIndex, ecx
 		cmp DWORD ptr [esi + go_exists], FALSE
 		je CONTINUE_CBS 
 		mov eax, [esi + go_x]
@@ -359,6 +361,7 @@ basicEnemyAi proc, object:DWORD
 		cmp eax, [ebx + go_y]
 		ja EXIT_BE_AI
 		CONTINUE_CBS:
+		add esi, gameObjectSize
 		inc ecx
 	cmp ecx, 55
 	jne CHECK_BULLET_SHOOTING
@@ -369,11 +372,12 @@ basicEnemyAi proc, object:DWORD
 	inc al
 	mov BULLET_AMOUNT, al ; update bullet amount
  
-	   mov ecx, 55
+	mov ecx, 55
+	invoke getGameObjectIndex, 55
 	FIND_VACANT_BULLET:
-		invoke getGameObjectIndex, ecx 	; Get potential bullet index
 		cmp DWORD ptr [esi + go_exists], FALSE
 		je BULLET_FOUND
+		add esi, gameObjectSize
 		inc ecx
 	cmp ecx, 70
 	jne FIND_VACANT_BULLET
@@ -466,8 +470,8 @@ checkCollision proc, object:DWORD
 	push edx
 
 	xor ecx, ecx
+	mov esi, ofst allGameObjects
 	COLLISION_LOOP_OVER_OBJECTS: ; Loop over all game objects
-		invoke getGameObjectIndex, ecx
 		cmp DWORD ptr [esi + go_exists], FALSE ; Check if the object doesn't exists
 		je CONTINUE_COLLISION_LOOP ; If so skip it
 		cmp esi, ebx ; Check if the refrece object is the same object as the one being checked
@@ -503,6 +507,7 @@ checkCollision proc, object:DWORD
 		jmp FINISH_COLLISION ; Exit
 		
 		CONTINUE_COLLISION_LOOP:
+		add esi, gameObjectSize
 		inc ecx
 	cmp ecx, 112
 	jne COLLISION_LOOP_OVER_OBJECTS
@@ -998,11 +1003,14 @@ main proc
 
 		;#region handle objects loop (Handle movment + ai + drawing of all objects)
 		xor ecx, ecx
+		mov esi, ofst allGameObjects
 		MAD_LOOP:
 			push ecx
-			invoke getGameObjectIndex, ecx
+			push esi
 			invoke handleGameObject, esi
+			pop esi
 			pop ecx
+			add esi, gameObjectSize
 			inc ecx
 		cmp ecx, 112
 		jne MAD_LOOP
@@ -1010,11 +1018,14 @@ main proc
 
 		;#region Collision detection
 		xor ecx, ecx
+		mov esi, ofst allGameObjects
 		COLL_LOOP:
 			push ecx
-			invoke getGameObjectIndex, ecx
-			invoke checkCollision, esi
+			push esi
+			invoke checkCollision, esi 
+			pop esi
 			pop ecx
+			add esi, gameObjectSize
 			inc ecx
 		cmp ecx, 112
 		jne COLL_LOOP
