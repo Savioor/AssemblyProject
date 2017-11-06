@@ -936,7 +936,7 @@ main proc
 	; Create the window
 	invoke drd_init, 1000, 600, 0
 	; Set the key handler
-	invoke drd_setKeyHandler, ofst keyhandle ; opTODO masm key input
+	invoke drd_setKeyHandler, ofst keyhandle
 	; Set window name
 	invoke drd_setWindowTitle, ofst windowName
 	; Load the images into RAM
