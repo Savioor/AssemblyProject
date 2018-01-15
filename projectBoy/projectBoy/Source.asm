@@ -64,20 +64,20 @@ numbersOfst equ 16
 
 ; Every thing that's visible on screen except UI elements is a gameobject
 GameObject STRUCT
-	y DWORD ? ; y position
-	x DWORD ? ; x position
-	sprite DWORD ? ; image pointer
-	hitBoxXOffset DWORD ? ; how far right does the hitbox strech
-	hitBoxYOffset DWORD ? ;  how far down does the hitbox strech
-	xVelocity DWORD 0 ; How far does the x position move in a tick
-	yVelocity DWORD 0 ; How far does the y position move in a tick
-	ai DWORD 0 ; pointer to the function which controlls this object
-	exists DWORD FALSE ; does this exist (To decide if you need to display it, check collision, run ai and move it)
-	XFreq DWORD 1 ; once in how many frames does the object move once x
-	yFreq DWORD 1 ; same but y
-	checkCollision DWORD FALSE ; Is this a bullet (basiclly)
-	pointsOnKill DWORD 0 ; How many points do you get when this shit dies
-	collisionFunc DWORD ofst defaultCollisionFunc ; What happenes when someone touches you ;)
+	y DWORD ?										; y position
+	x DWORD ?										; x position
+	sprite DWORD ?									; image pointer
+	hitBoxXOffset DWORD ?							; how far right does the hitbox strech
+	hitBoxYOffset DWORD ?							; how far down does the hitbox strech
+	xVelocity DWORD 0								; How far does the x position move in a tick
+	yVelocity DWORD 0								; How far does the y position move in a tick
+	ai DWORD 0										; pointer to the function which controlls this object
+	exists DWORD FALSE								; does this exist (To decide if you need to display it, check collision, run ai and move it)
+	XFreq DWORD 1									; once in how many frames does the object move once x
+	yFreq DWORD 1									; same but y
+	checkCollision DWORD FALSE						; Is this a bullet (basiclly)
+	pointsOnKill DWORD 0							; How many points do you get when this shit dies
+	collisionFunc DWORD ofst defaultCollisionFunc	; What happenes when someone touches you ;)
 GameObject ENDS
 
 ;#endregion
@@ -184,7 +184,7 @@ LEADER DWORD ? ; The location of the leading invader in memory
 ; This function generates a random 32 bit number and passes with eax
 generateRandom proc
 	rdseed ax
-	shl eax, 4
+	shl eax, 16
 	rdseed ax
 	ret
 generateRandom endp
@@ -252,7 +252,7 @@ getLeader proc
 		je CONTINUE_LEADER_SEARCH_LOOP
 			
 		.if MOVE_LEFT == TRUE ; Move left
-			; Am I the leftmostsome?
+			; Am I the leftmostsome?	
 			mov eax, DWORD ptr [esi + go_x]
 			.if eax < DWORD ptr [edi + go_x]
 				;I am more left
@@ -333,7 +333,7 @@ basicEnemyAi proc, object:DWORD
 			mov GAME_STAGE, Stage_GAMEOVER ; The invaders are too low
 		.endif
 	.endif
-
+	
 	; ~~~ shoot bullets ~~~
 
 	invoke generateRandom ; Generate a random number to decide if to shoot or not
