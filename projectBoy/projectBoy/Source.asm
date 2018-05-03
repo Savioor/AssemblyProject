@@ -26,6 +26,8 @@ ofst equ offset ; I'm lazy
 
 playerSpeed equ 8 ; The speed of the player
 
+keyDownTest equ 1000h ; For key testing
+
 ; Different gameObject declarations
 gameObjectSize equ 56 ; the size of the struct
 go_y equ 0 ; Offsets of different elements it the struct
@@ -609,24 +611,26 @@ keyhandle proc, keycode:DWORD
 
 	;#region Key handling during game
 
-	cmp keycode, 39
-	jne NOT_KEY_RIGHT
+	invoke GetAsyncKeyState, VK_RIGHT
+	cmp ax, keyDownTest
+	jb NOT_KEY_RIGHT
 	
 	; The right arrow key is pressed (move right):
 	mov playerObject.xVelocity, playerSpeed
 
 	jmp NO_KEY_MATCH
 	NOT_KEY_RIGHT:
-	cmp keycode, 37
-	jne NOT_KEY_LEFT
+	invoke GetAsyncKeyState, VK_LEFT
+	cmp ax, keyDownTest
+	jb NOT_KEY_LEFT
 
 	; The left arrow key is pressed (move left):
 	mov playerObject.xVelocity, -playerSpeed
 
-	jmp NO_KEY_MATCH
 	NOT_KEY_LEFT:
-	cmp keycode, 32
-	jne NO_KEY_MATCH
+	invoke GetAsyncKeyState, VK_SPACE
+	cmp ax, keyDownTest
+	jb NO_KEY_MATCH
 
 	; Spacebar is pressed (shoot bullet):
 	cmp playerBullet.exists, TRUE
@@ -659,15 +663,17 @@ keyhandle proc, keycode:DWORD
 
 	menuKeys:
 	
-	cmp keycode, 20h
-	jne MENU_NOT_SPACEBAR
+	invoke GetAsyncKeyState, VK_SPACE 
+	cmp ax, keyDownTest
+	jb MENU_NOT_SPACEBAR
 
 	mov GAME_STAGE, Stage_PLAYING
 	ret 4
 
 	MENU_NOT_SPACEBAR:
-	cmp keycode, 45h
-	jne NO_MENU_KEY_MATCH
+	invoke GetAsyncKeyState, VK_E
+	cmp ax, keyDownTest
+	jb NO_MENU_KEY_MATCH
 
 	mov GAME_STAGE, Stage_EXIT
 	ret 4
@@ -681,10 +687,12 @@ keyhandle proc, keycode:DWORD
 
 	redirectionKeys:
 
-	cmp keycode, 52h
-	je RETRY_GAME
-	cmp keycode, 20h
-	je TO_MENU
+	invoke GetAsyncKeyState, VK_R
+	cmp ax, keyDownTest
+	jae RETRY_GAME
+	invoke GetAsyncKeyState, VK_SPACE
+	cmp ax, keyDownTest
+	jae TO_MENU
 	ret 4
 
 	RETRY_GAME:
