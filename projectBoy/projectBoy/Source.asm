@@ -91,6 +91,7 @@ GameObject ENDS
 d_Player_Still BYTE "Sprites/Player/Player_Regular.bmp", 0
 d_Player_Bullet BYTE "Sprites/Player/Player_Bullet.bmp", 0
 d_Enemy0 BYTE "Sprites/Enemies/Enemy0.bmp", 0
+d_Enemy1 BYTE "Sprites/Enemies/Enemy1.bmp", 0
 d_EnemyBullet0 BYTE "Sprites/Enemies/Enemy_Bullet.bmp", 0
 d_Brick4hp BYTE "Sprites/Shields/Brick4hp.bmp", 0
 d_Brick3hp BYTE "Sprites/Shields/Brick3hp.bmp", 0
@@ -101,6 +102,7 @@ d_gameoverScreen BYTE "Sprites/Screens/gameOverScreen.bmp", 0
 d_winScreen BYTE "Sprites/Screens/winScreen.bmp", 0
 d_mainMenu BYTE "Sprites/Screens/menuScreen.bmp", 0
 d_numberBase BYTE "Sprites/Numbers/0.bmp", 0
+d_boom BYTE "Sprites/Boom.bmp", 0
 ; numbersOfst equ 16
 
 ;#endregion
@@ -112,6 +114,7 @@ d_numberBase BYTE "Sprites/Numbers/0.bmp", 0
 Player_Still Img<>
 Player_Bullet Img<>
 Enemy0 Img<>
+Enemy1 Img<>
 EnemyBullet0 Img<>
 ; The next 4 lines of code are kinda equivelent to 'Brick4hp Img 4 dup (<?>)'
 ; Img<> size is 20 bytes
@@ -124,6 +127,7 @@ gameoverScreen Img<>
 winScreen Img<>
 mainMenu Img<>
 numbersArray Img 10 dup (<?>)
+boom Img<>
 
 ;#endregion
 
@@ -131,12 +135,22 @@ numbersArray Img 10 dup (<?>)
 
 ;#region
 
+ghosts GameObject 55 dup (<?>) ; AIII this is cheeky as fuck
 allGameObjects GameObject 110 dup (<?>) ; in that order: 55 enemies, 15 enemy bullets, 40 bricks
 playerObject GameObject<> ; The object representing the player himself
 playerBullet GameObject<> ; The bullet that the player shoots
+boomAnimation GameObject<>
 
 ; I don't really have a good category for this but it's the window name
 windowName BYTE "Spave Invaders - by Alexey Shapovalov", 0
+
+;#endregion
+
+; ---------------- Yooda Challange ----------------
+
+;#region
+
+FRAMES_ALIVE dword 0
 
 ;#endregion
 
@@ -282,6 +296,24 @@ getLeader proc
 	ret
 getLeader endp
 
+;#endregion
+
+; Does nothing
+nullFunc proc, object:DWORD
+	ret 4
+nullFunc endp
+
+boomAI proc, object:DWORD
+	cmp FRAMES_ALIVE, 0
+	je EXITF
+	dec FRAMES_ALIVE
+	cmp FRAMES_ALIVE, 0
+	jne EXITF
+	mov boomAnimation.exists, FALSE
+	EXITF:
+	ret 4
+boomAI endp
+
 ; Change the game stage to Stage_GAMEOVER - the player lost
 playerLost proc, object:DWORD
 	mov GAME_STAGE, Stage_GAMEOVER	
@@ -407,13 +439,53 @@ defaultCollisionFunc endp
 
 ; The collision function that runs when a bullet hits an enemy
 enemyCollisionFunc proc, object:DWORD
-	push ebx
+	pusha
 
 	mov ebx, object
 	mov DWORD ptr [ebx + go_exists], FALSE ; set the object exists variable to false
 	inc SCORE ; Increase the player score
 
-	pop ebx
+	; Create an explosion
+	mov eax, DWORD ptr [ebx + go_x]
+	mov boomAnimation.x, eax
+	mov eax, DWORD ptr [ebx + go_y]
+	mov boomAnimation.y, eax
+	mov boomAnimation.exists, TRUE
+	mov FRAMES_ALIVE, 80
+	
+	; Make a ghost
+	mov ecx, 55
+	mov esi, ofst ghosts
+	GHOST_SETUP_LOOP:
+		cmp DWORD ptr [esi + go_exists], FALSE
+		je EXIT_LOOP
+		add esi, gameObjectSize
+	loop GHOST_SETUP_LOOP
+	EXIT_LOOP: ;esi holds ghost now
+
+	mov edx, 1
+	invoke generateRandom
+	invoke modulu, eax, 2
+	cmp eax, 0
+	je NO_INVERT1
+	neg edx
+	NO_INVERT1:
+	mov DWORD ptr [esi + go_xV], edx
+	mov edx, 1
+	invoke generateRandom
+	invoke modulu, eax, 2
+	cmp eax, 0
+	je NO_INVERT2
+	neg edx
+	NO_INVERT2:
+	mov DWORD ptr [esi + go_yV], edx
+	mov eax, DWORD ptr [ebx + go_x]
+	mov DWORD ptr [esi + go_x], eax
+	mov eax, DWORD ptr [ebx + go_y]
+	mov DWORD ptr [esi + go_y], eax
+	mov DWORD ptr [esi + go_exists], TRUE
+
+	popa
 	ret 4
 enemyCollisionFunc endp
 
@@ -433,6 +505,96 @@ brickCollisionFunc proc, object:DWORD
 	pop ebx
 	ret 4
 brickCollisionFunc endp
+
+ghostAI proc, object:DWORD
+	pusha
+
+	mov ebx, object
+	mov eax, [ebx + go_x]
+	cmp eax, 0
+	jg NOT_TO_LEFT
+	neg DWORD ptr [ebx + go_xV]
+	mov edx, DWORD ptr [ebx + go_xV] 
+	add DWORD ptr [ebx + go_x], edx
+	jmp X_OKAY
+	NOT_TO_LEFT:
+	add eax, [ebx + go_htbxX]
+	cmp eax, 1000
+	jl X_OKAY
+	neg DWORD ptr [ebx + go_xV]
+	mov edx, DWORD ptr [ebx + go_xV] 
+	add DWORD ptr [ebx + go_x], edx
+	X_OKAY:
+
+	mov ebx, object
+	mov eax, [ebx + go_y]
+	cmp eax, 0
+	jg NOT_TO_TOP
+ 	neg DWORD ptr [ebx + go_yV]
+	mov edx, DWORD ptr [ebx + go_yV] 
+	add DWORD ptr [ebx + go_y], edx
+	jmp EXITF
+	NOT_TO_TOP:
+	add eax, [ebx + go_htbxY]
+	cmp eax, 600
+	jl Y_OKAY
+	neg DWORD ptr [ebx + go_yV]
+	mov edx, DWORD ptr [ebx + go_yV] 
+	add DWORD ptr [ebx + go_y], edx
+	jmp EXITF
+	Y_OKAY:
+
+	xor ecx, ecx
+	mov esi, ofst ghosts
+	COLLISION_LOOP_OVER_OBJECTS: ; Loop over all game objects
+		cmp DWORD ptr [esi + go_exists], FALSE ; Check if the object doesn't exists
+		je CONTINUE_COLLISION_LOOP ; If so skip it
+		cmp esi, ebx ; Check if the refrece object is the same object as the one being checked
+		je CONTINUE_COLLISION_LOOP ; If so skip it
+
+		mov eax, [ebx + go_x] ; xL of checker
+		add eax, [ebx + go_htbxX] ; xH of checker
+		mov edx, [esi + go_x] ; xL of checked
+		add edx, [esi + go_htbxX] ; xH of checked
+		.if DWORD ptr [ebx + go_x] <= edx && eax > [esi + go_x]
+			jmp CHECK_COLLISION_Y
+		.endif
+		jmp CONTINUE_COLLISION_LOOP
+
+		CHECK_COLLISION_Y:
+
+		mov eax, [ebx + go_y] ; yL of checker
+		add eax, [ebx + go_htbxY] ; yH of checker 
+		mov edx, [esi + go_y] ; yL of checked
+		add edx, [esi + go_htbxY] ; yH of checked
+		.if DWORD ptr [ebx + go_y] <= edx && eax > [esi + go_y]
+			jmp COLLISION_DETECTED
+		.endif
+		jmp CONTINUE_COLLISION_LOOP
+
+		COLLISION_DETECTED:
+
+		neg DWORD ptr [ebx + go_xV]
+		neg DWORD ptr [ebx + go_yV]
+		mov edx, DWORD ptr [ebx + go_yV] 
+		add DWORD ptr [ebx + go_y], edx
+		mov edx, DWORD ptr [ebx + go_xV] 
+		add DWORD ptr [ebx + go_x], edx
+
+		; Call the collision functions of the checker and checked
+		
+		jmp EXITF ; Exit
+		
+		CONTINUE_COLLISION_LOOP:
+		add esi, gameObjectSize
+		inc ecx
+	cmp ecx, 55
+	jne COLLISION_LOOP_OVER_OBJECTS
+
+	EXITF:
+	popa
+	ret 4
+ghostAI endp
 
 ; The collision function that runs when something hits a enemy bullet
 enemyBulletCollision proc, object:DWORD
@@ -710,8 +872,7 @@ keyhandle endp
 
 ; Run at the startup of the program, overall this must be run only once
 initGameStartup proc
-	push ecx
-	push esi
+	pusha
 
 	; ~~~ Player setup ~~~
 
@@ -726,6 +887,32 @@ initGameStartup proc
 	mov playerBullet.hitBoxXOffset, 13 ; The bullet width is 13
 	mov playerBullet.hitBoxYOffset, 25 ; The bullet height is 25
 	mov playerBullet.checkCollision, TRUE ; The bullet is a collision checker
+
+	; ~~~ Boom setup ~~~
+
+	mov boomAnimation.collisionFunc, ofst nullFunc
+	mov boomAnimation.ai, ofst boomAI
+	mov boomAnimation.hitBoxXOffset, 0
+	mov boomAnimation.hitBoxYOffset, 0
+	mov boomAnimation.sprite, ofst boom
+
+	; ~~~ Ghost setup ~~~
+
+	mov ecx, 55
+	mov esi, ofst ghosts
+	lea ebx, Enemy1
+	GHOST_SETUP_LOOP:
+		
+		mov [esi + go_sprite], ebx
+		mov DWORD ptr [esi + go_htbxX], enemy_width ; Width
+		mov DWORD ptr [esi + go_htbxY], enemy_height ; Height
+		mov DWORD ptr [esi + go_collFunc], ofst nullFunc
+		mov DWORD ptr [esi + go_ai], ofst ghostAI
+		mov DWORD ptr [esi + go_yFrq], 6
+		mov DWORD ptr [esi + go_xFrq], 6
+
+		add esi, gameObjectSize
+	loop GHOST_SETUP_LOOP
 
 	; ~~~ Enemy setup ~~~
 
@@ -773,8 +960,7 @@ initGameStartup proc
 	cmp ecx, 110
 	jne BRICK_INIT_LOOP
 
-	pop esi
-	pop ecx
+	popa
 	ret
 initGameStartup endp
 
@@ -792,6 +978,22 @@ initGame proc
 	lea eax, Player_Bullet
 	mov playerBullet.sprite, eax ; The default bullet sprite
 	mov playerBullet.exists, FALSE
+	
+	; ~~~ Boom setup ~~~
+
+	mov boomAnimation.exists, FALSE
+	mov FRAMES_ALIVE, 0
+
+	; ~~~ Ghost setup ~~~
+
+	mov ecx, 55
+	mov esi, ofst ghosts
+	GHOST_SETUP_LOOP:
+		
+		mov DWORD ptr [esi + go_exists], FALSE
+
+		add esi, gameObjectSize
+	loop GHOST_SETUP_LOOP
 
 	; ~~~ Enemy setup ~~~
 	mov INVADER_SPEED, 16
@@ -960,6 +1162,8 @@ main proc
 	invoke drd_imageLoadFile, ofst d_gameoverScreen, ofst gameoverScreen
 	invoke drd_imageLoadFile, ofst d_mainMenu, ofst mainMenu
 	invoke drd_imageLoadFile, ofst d_winScreen, ofst winScreen
+	invoke drd_imageLoadFile, ofst d_boom, ofst boom
+	invoke drd_imageLoadFile, ofst d_Enemy1, ofst Enemy1
 
 	; Load the numbers
 	mov ecx, 10 ; Loop 10 times (10 numbers)
@@ -1009,7 +1213,7 @@ main proc
 
 		;#region handle objects loop (Handle movment + ai + drawing of all objects)
 		xor ecx, ecx
-		mov esi, ofst allGameObjects
+		mov esi, ofst ghosts
 		MAD_LOOP:
 			push ecx
 			push esi
@@ -1018,7 +1222,7 @@ main proc
 			pop ecx
 			add esi, gameObjectSize
 			inc ecx
-		cmp ecx, 112
+		cmp ecx, 168
 		jne MAD_LOOP
 		;#endregion
 
