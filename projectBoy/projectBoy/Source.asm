@@ -135,7 +135,7 @@ allGameObjects GameObject 110 dup (<?>) ; in that order: 55 enemies, 15 enemy bu
 playerObject GameObject<> ; The object representing the player himself
 playerBullet GameObject<> ; The bullet that the player shoots
 
-; I don't really have a good category for this but it's the windows name
+; I don't really have a good category for this but it's the window name
 windowName BYTE "Spave Invaders - by Alexey Shapovalov", 0
 
 ;#endregion
@@ -288,7 +288,7 @@ playerLost proc, object:DWORD
 	ret 4
 playerLost endp
 
-; Run this function to control the enemies (TODO more cleanup)
+; Run this function to control the enemies
 basicEnemyAi proc, object:DWORD
 	pushad
 	
@@ -618,7 +618,7 @@ keyhandle proc, keycode:DWORD
 	; The right arrow key is pressed (move right):
 	mov playerObject.xVelocity, playerSpeed
 
-	jmp NO_KEY_MATCH
+	jmp NOT_KEY_LEFT
 	NOT_KEY_RIGHT:
 	invoke GetAsyncKeyState, VK_LEFT
 	cmp ax, keyDownTest
@@ -778,7 +778,7 @@ initGameStartup proc
 	ret
 initGameStartup endp
 
-; Run this everytime I want to restart/start a game session (TODO more cleanup)
+; Run this everytime I want to restart/start a game session
 initGame proc
 	mov FRAME_COUNT, 0 ; Reset the frame count because a new game has started
 	mov SCORE, 0 ; Reset the score
